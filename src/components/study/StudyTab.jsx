@@ -1,0 +1,109 @@
+import { useEffect, useMemo, useState } from 'react';
+import TopicSelector from './TopicSelector';
+import TimerDisplay from './TimerDisplay';
+import SessionControls from './SessionControls';
+import EndSessionModal from './EndSessionModal';
+import TodaySessionLog from './TodaySessionLog';
+
+function elapsedFromActive(activeSession) {
+  if (!activeSession) return 0;
+  const runningChunk = activeSession.running
+    ? Math.floor((Date.now() - activeSession.lastResumedAt) / 1000)
+    : 0;
+  return activeSession.elapsedSecondsBeforePause + runningChunk;
+}
+
+export default function StudyTab({
+  topics,
+  sessions,
+  activeSession,
+  onStart,
+  onPause,
+  onResume,
+  onCommit
+}) {
+  const [selectedTopicId, setSelectedTopicId] = useState('');
+  const [selectedSubtopicId, setSelectedSubtopicId] = useState('');
+  const [targetMinutes, setTargetMinutes] = useState(45);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [showEndModal, setShowEndModal] = useState(false);
+
+  useEffect(() => {
+    if (!activeSession) {
+      setElapsedSeconds(0);
+      return;
+    }
+
+    setSelectedTopicId(activeSession.topicId);
+    setSelectedSubtopicId(activeSession.subtopicId);
+    setElapsedSeconds(elapsedFromActive(activeSession));
+
+    const id = window.setInterval(() => {
+      setElapsedSeconds(elapsedFromActive(activeSession));
+    }, 1000);
+
+    return () => window.clearInterval(id);
+  }, [activeSession]);
+
+  const selectedSubtopicName = useMemo(() => {
+    const topic = topics.find((item) => item.id === (activeSession?.topicId || selectedTopicId));
+    const subtopic = topic?.subtopics.find((item) => item.id === (activeSession?.subtopicId || selectedSubtopicId));
+    return subtopic?.name || '[DELETED]';
+  }, [activeSession, topics, selectedTopicId, selectedSubtopicId]);
+
+  const running = Boolean(activeSession?.running);
+  const paused = Boolean(activeSession && !activeSession.running);
+
+  return (
+    <div className="section-stack">
+      <TopicSelector
+        topics={topics}
+        selectedTopicId={activeSession?.topicId || selectedTopicId}
+        selectedSubtopicId={activeSession?.subtopicId || selectedSubtopicId}
+        onSelectTopic={(id) => {
+          setSelectedTopicId(id);
+          setSelectedSubtopicId('');
+        }}
+        onSelectSubtopic={setSelectedSubtopicId}
+      />
+
+      <SessionControls
+        canStart={Boolean(selectedTopicId && selectedSubtopicId)}
+        running={running}
+        paused={paused}
+        targetMinutes={targetMinutes}
+        onTargetChange={setTargetMinutes}
+        onStart={() =>
+          onStart({
+            topicId: selectedTopicId,
+            subtopicId: selectedSubtopicId,
+            targetMinutes: Number(targetMinutes) || 0
+          })
+        }
+        onPause={onPause}
+        onResume={onResume}
+        onEnd={() => setShowEndModal(true)}
+      />
+
+      <TimerDisplay
+        elapsedSeconds={elapsedSeconds}
+        running={running}
+        paused={paused}
+        targetMinutes={activeSession?.targetMinutes || Number(targetMinutes) || 0}
+      />
+
+      <TodaySessionLog sessions={sessions} topics={topics} />
+
+      <EndSessionModal
+        open={showEndModal}
+        elapsedSeconds={elapsedSeconds}
+        subtopicName={selectedSubtopicName}
+        onCancel={() => setShowEndModal(false)}
+        onConfirm={(markCompleted) => {
+          onCommit({ markCompleted });
+          setShowEndModal(false);
+        }}
+      />
+    </div>
+  );
+}
