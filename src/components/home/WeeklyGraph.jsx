@@ -1,14 +1,14 @@
 import { format } from 'date-fns';
 import PixelCard from '../ui/PixelCard';
 import PixelTooltip from '../ui/PixelTooltip';
-import { getCurrentWeekDays, toISODate } from '../../utils/dateUtils';
+import { getCurrentWeekDays, getSessionDateISO, toISODate } from '../../utils/dateUtils';
 
 function getDailyMinutesByWeek(sessions) {
   const days = getCurrentWeekDays();
   const map = new Map(days.map((date) => [toISODate(date), { minutes: 0, topicIds: new Set() }]));
 
   for (const session of sessions) {
-    const day = session.startTime?.slice(0, 10);
+    const day = getSessionDateISO(session);
     if (map.has(day)) {
       const entry = map.get(day);
       entry.minutes += session.durationMinutes;

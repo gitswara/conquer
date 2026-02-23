@@ -1,5 +1,5 @@
 import PixelCard from '../ui/PixelCard';
-import { todayISODate } from '../../utils/dateUtils';
+import { getSessionDateISO, todayISODate } from '../../utils/dateUtils';
 import { formatMinutes } from '../../utils/timeUtils';
 
 function nameFromIds(topics, topicId, subtopicId) {
@@ -12,7 +12,7 @@ function nameFromIds(topics, topicId, subtopicId) {
 
 export default function TodaySessionLog({ sessions, topics }) {
   const today = todayISODate();
-  const todaySessions = sessions.filter((session) => session.startTime?.slice(0, 10) === today);
+  const todaySessions = sessions.filter((session) => getSessionDateISO(session) === today);
   const total = todaySessions.reduce((acc, session) => acc + session.durationMinutes, 0);
 
   return (

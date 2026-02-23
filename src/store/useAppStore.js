@@ -305,6 +305,7 @@ export const useAppStore = create(
           subtopicId: active.subtopicId,
           startTime: active.startTime,
           endTime: new Date(now).toISOString(),
+          sessionDate,
           durationMinutes,
           countedForStreak: streakResult.countedForStreak
         };

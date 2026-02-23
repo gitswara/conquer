@@ -47,3 +47,16 @@ export function getCurrentWeekDays(baseDate = new Date()) {
 export function isSameISODate(a, b) {
   return a === b;
 }
+
+export function getSessionDateISO(session) {
+  if (!session) return '';
+  if (session.sessionDate) return session.sessionDate;
+
+  const parsedStart = safeParseISO(session.startTime);
+  if (parsedStart) return toISODate(parsedStart);
+
+  const parsedEnd = safeParseISO(session.endTime);
+  if (parsedEnd) return toISODate(parsedEnd);
+
+  return '';
+}
