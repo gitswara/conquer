@@ -8,6 +8,7 @@ export default function TopicSelector({ topics, selectedTopicId, selectedSubtopi
     () => selectedTopic?.subtopics.find((subtopic) => subtopic.id === selectedSubtopicId) || null,
     [selectedTopic, selectedSubtopicId]
   );
+  const hasSubtopics = (selectedTopic?.subtopics?.length || 0) > 0;
 
   if (!topics.length) {
     return (
@@ -31,23 +32,29 @@ export default function TopicSelector({ topics, selectedTopicId, selectedSubtopi
           ))}
         </select>
 
-        <select
-          aria-label="Select subtopic"
-          value={selectedSubtopicId || ''}
-          onChange={(e) => onSelectSubtopic(e.target.value)}
-          disabled={!selectedTopic}
-        >
-          <option value="">SELECT SUBTOPIC</option>
-          {(selectedTopic?.subtopics || [])
-            .slice()
-            .sort((a, b) => a.order - b.order)
-            .map((subtopic) => (
-              <option key={subtopic.id} value={subtopic.id}>
-                {subtopic.completed ? '✅ ' : ''}
-                {subtopic.name}
-              </option>
-            ))}
-        </select>
+        {hasSubtopics ? (
+          <select
+            aria-label="Select subtopic"
+            value={selectedSubtopicId || ''}
+            onChange={(e) => onSelectSubtopic(e.target.value)}
+            disabled={!selectedTopic}
+          >
+            <option value="">SELECT SUBTOPIC</option>
+            {(selectedTopic?.subtopics || [])
+              .slice()
+              .sort((a, b) => a.order - b.order)
+              .map((subtopic) => (
+                <option key={subtopic.id} value={subtopic.id}>
+                  {subtopic.completed ? '✅ ' : ''}
+                  {subtopic.name}
+                </option>
+              ))}
+          </select>
+        ) : selectedTopic ? (
+          <div className="muted" style={{ fontSize: 12 }}>
+            No subtopics in this topic. Session will run at topic level.
+          </div>
+        ) : null}
       </div>
 
       {selectedTopic && selectedSubtopic ? (
