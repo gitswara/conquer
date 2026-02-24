@@ -63,8 +63,8 @@ export default function StudyTab({
     <div className="section-stack">
       <TopicSelector
         topics={topics}
-        selectedTopicId={activeSession?.topicId || selectedTopicId}
-        selectedSubtopicId={activeSession?.subtopicId || selectedSubtopicId}
+        selectedTopicId={selectedTopicId}
+        selectedSubtopicId={selectedSubtopicId}
         onSelectTopic={(id) => {
           setSelectedTopicId(id);
           setSelectedSubtopicId('');
