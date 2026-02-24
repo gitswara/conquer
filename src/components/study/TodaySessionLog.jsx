@@ -6,6 +6,7 @@ function nameFromIds(topics, topicId, subtopicId) {
   const topic = topics.find((item) => item.id === topicId);
   const subtopic = topic?.subtopics.find((item) => item.id === subtopicId);
   if (!topic) return '[DELETED]';
+  if (!subtopicId) return `${topic.topicName} › [TOPIC]`;
   if (!subtopic) return `${topic.topicName} › [DELETED]`;
   return `${topic.topicName} › ${subtopic.name}`;
 }

@@ -285,7 +285,7 @@ export const useAppStore = create(
 
       clearActiveSession: () => set({ activeSession: null }),
 
-      commitSession: ({ markCompleted = false } = {}) => {
+      commitSession: ({ markCompleted = false, completionSubtopicId = '', markWholeTopicCompleted = false } = {}) => {
         const state = get();
         const active = state.activeSession;
         if (!active) return null;
@@ -299,12 +299,16 @@ export const useAppStore = create(
         const streakBase = reconcileStreakForNewDay(state.streak);
         const streakResult = applySessionToStreak(streakBase, durationMinutes, sessionDate);
 
+        const completionTimestamp = new Date(now).toISOString();
+        const targetSubtopicId = active.subtopicId || completionSubtopicId || '';
+        const completeEntireTopic = Boolean(markCompleted && markWholeTopicCompleted);
+
         const session = {
           id: uid('session'),
           topicId: active.topicId,
-          subtopicId: active.subtopicId,
+          subtopicId: targetSubtopicId,
           startTime: active.startTime,
-          endTime: new Date(now).toISOString(),
+          endTime: completionTimestamp,
           sessionDate,
           durationMinutes,
           countedForStreak: streakResult.countedForStreak
@@ -318,12 +322,13 @@ export const useAppStore = create(
             return {
               ...topic,
               subtopics: topic.subtopics.map((subtopic) => {
-                if (subtopic.id !== active.subtopicId) return subtopic;
+                const isTargetSubtopic = Boolean(targetSubtopicId) && subtopic.id === targetSubtopicId;
+                const shouldMarkCompleted = completeEntireTopic || (markCompleted && isTargetSubtopic);
                 return {
                   ...subtopic,
-                  timeSpentMinutes: (subtopic.timeSpentMinutes || 0) + durationMinutes,
-                  completed: markCompleted ? true : subtopic.completed,
-                  completedAt: markCompleted ? new Date().toISOString() : subtopic.completedAt
+                  timeSpentMinutes: isTargetSubtopic ? (subtopic.timeSpentMinutes || 0) + durationMinutes : subtopic.timeSpentMinutes,
+                  completed: shouldMarkCompleted ? true : subtopic.completed,
+                  completedAt: shouldMarkCompleted ? completionTimestamp : subtopic.completedAt
                 };
               })
             };

@@ -45,11 +45,16 @@ export default function StudyTab({
     return () => window.clearInterval(id);
   }, [activeSession]);
 
-  const selectedSubtopicName = useMemo(() => {
-    const topic = topics.find((item) => item.id === (activeSession?.topicId || selectedTopicId));
-    const subtopic = topic?.subtopics.find((item) => item.id === (activeSession?.subtopicId || selectedSubtopicId));
-    return subtopic?.name || '[DELETED]';
-  }, [activeSession, topics, selectedTopicId, selectedSubtopicId]);
+  const activeTopic = useMemo(
+    () => topics.find((item) => item.id === (activeSession?.topicId || selectedTopicId)) || null,
+    [activeSession, topics, selectedTopicId]
+  );
+  const activeSubtopic = useMemo(
+    () => activeTopic?.subtopics.find((item) => item.id === (activeSession?.subtopicId || selectedSubtopicId)) || null,
+    [activeSession, activeTopic, selectedSubtopicId]
+  );
+  const selectedTopicName = activeTopic ? `${activeTopic.subject} › ${activeTopic.topicName}` : '';
+  const selectedSubtopicName = activeSubtopic?.name || '';
 
   const running = Boolean(activeSession?.running);
   const paused = Boolean(activeSession && !activeSession.running);
@@ -68,7 +73,7 @@ export default function StudyTab({
       />
 
       <SessionControls
-        canStart={Boolean(selectedTopicId && selectedSubtopicId)}
+        canStart={Boolean(selectedTopicId)}
         running={running}
         paused={paused}
         targetMinutes={targetMinutes}
@@ -76,7 +81,7 @@ export default function StudyTab({
         onStart={() =>
           onStart({
             topicId: selectedTopicId,
-            subtopicId: selectedSubtopicId,
+            subtopicId: selectedSubtopicId || '',
             targetMinutes: Number(targetMinutes) || 0
           })
         }
@@ -97,10 +102,13 @@ export default function StudyTab({
       <EndSessionModal
         open={showEndModal}
         elapsedSeconds={elapsedSeconds}
+        topicName={selectedTopicName}
         subtopicName={selectedSubtopicName}
+        hasSelectedSubtopic={Boolean(activeSession?.subtopicId)}
+        topicSubtopics={activeTopic?.subtopics || []}
         onCancel={() => setShowEndModal(false)}
-        onConfirm={(markCompleted) => {
-          onCommit({ markCompleted });
+        onConfirm={(payload) => {
+          onCommit(payload);
           setShowEndModal(false);
         }}
       />
