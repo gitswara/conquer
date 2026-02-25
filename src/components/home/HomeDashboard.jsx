@@ -5,7 +5,7 @@ import StreakWidget from './StreakWidget';
 import WeeklyGraph from './WeeklyGraph';
 import MotivationalQuote from './MotivationalQuote';
 
-export default function HomeDashboard({ config, topics, sessions, quoteSeed }) {
+export default function HomeDashboard({ config, subjects, topics, sessions, quoteSeed }) {
   const gridStyle = useMemo(
     () => ({
       display: 'grid',
@@ -17,7 +17,7 @@ export default function HomeDashboard({ config, topics, sessions, quoteSeed }) {
 
   return (
     <div className="section-stack">
-      <SyllabusProgressBar topics={topics} />
+      <SyllabusProgressBar subjects={subjects} topics={topics} />
       <div style={gridStyle}>
         <DaysRemainingWidget config={config} />
         <StreakWidget />

@@ -393,7 +393,15 @@ export default function App() {
             }
           />
 
-          {ui.tab === 'HOME' ? <HomeDashboard config={config} topics={topics} sessions={sessions} quoteSeed={quoteSeed} /> : null}
+          {ui.tab === 'HOME' ? (
+            <HomeDashboard
+              config={config}
+              subjects={subjects}
+              topics={topics}
+              sessions={sessions}
+              quoteSeed={quoteSeed}
+            />
+          ) : null}
 
           {ui.tab === 'STUDY' ? (
             <StudyTab

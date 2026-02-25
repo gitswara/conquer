@@ -8,7 +8,7 @@ import AddSubtopicModal from './AddSubtopicModal';
 import SubjectGroup from './SubjectGroup';
 import TopicRow from './TopicRow';
 import SubtopicRow from './SubtopicRow';
-import { completionPercent } from '../../utils/progressUtils';
+import { completionPercent, getProgressStats } from '../../utils/progressUtils';
 import { formatMinutes } from '../../utils/timeUtils';
 
 function topicStats(topic) {
@@ -275,6 +275,7 @@ export default function SyllabusTable({
   }, [grouped, normalizedQuery, statusFilter]);
 
   const totals = useMemo(() => {
+    const progressStats = getProgressStats(subjects, topics);
     const subjectCount = subjects.length || new Set(topics.map((topic) => topic.subject)).size;
     const topicCount = topics.length;
     const allSubtopics = topics.flatMap((topic) => topic.subtopics);
@@ -285,7 +286,7 @@ export default function SyllabusTable({
       subjectCount,
       topicCount,
       subtopicCount,
-      percent: completionPercent(completedCount, subtopicCount),
+      percent: Math.round(progressStats.progress),
       minutes
     };
   }, [subjects, topics]);

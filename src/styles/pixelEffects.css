@@ -336,6 +336,38 @@
   gap: 6px;
 }
 
+.pixel-confetti-screen {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 60;
+  overflow: hidden;
+}
+
+.pixel-confetti-piece {
+  position: absolute;
+  top: -16px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  image-rendering: pixelated;
+  animation-name: pixel-confetti-fall;
+  animation-timing-function: linear;
+  animation-fill-mode: both;
+}
+
+@keyframes pixel-confetti-fall {
+  0% {
+    opacity: 0;
+    transform: translateY(-8px) rotate(0deg) scale(1);
+  }
+  10% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(104vh) rotate(540deg) scale(1.1);
+  }
+}
+
 @media (hover: hover) and (pointer: fine) {
   .syllabus-actions.hover-desktop {
     opacity: 0;
