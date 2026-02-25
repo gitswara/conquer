@@ -13,6 +13,7 @@ const initialStreak = {
 
 const initialState = {
   config: null,
+  subjects: [],
   topics: [],
   sessions: [],
   streak: initialStreak,
@@ -26,6 +27,28 @@ const initialState = {
 function nextOrder(items) {
   if (!items.length) return 1;
   return Math.max(...items.map((item) => item.order || 0)) + 1;
+}
+
+function normalizeSubjectName(subject) {
+  return String(subject || '').trim();
+}
+
+function deriveSubjectsFromTopics(topics) {
+  const map = new Map();
+  topics.forEach((topic, index) => {
+    const name = normalizeSubjectName(topic.subject);
+    if (!name) return;
+    if (map.has(name)) return;
+    map.set(name, {
+      id: uid('subject'),
+      name,
+      color: topic.color || '#c084fc',
+      completed: false,
+      completedAt: null,
+      order: index + 1
+    });
+  });
+  return [...map.values()].sort((a, b) => a.order - b.order);
 }
 
 export const useAppStore = create(
@@ -94,30 +117,56 @@ export const useAppStore = create(
 
       addSubject: ({ subjectName, color }) =>
         set((state) => {
-          const subjectTopics = state.topics.filter((topic) => topic.subject === subjectName);
-          const topic = {
-            id: uid('topic'),
-            subject: subjectName,
-            topicName: 'New Topic',
-            subtopics: [],
-            order: nextOrder(subjectTopics),
-            color
+          const normalized = normalizeSubjectName(subjectName);
+          if (!normalized) return state;
+          if (state.subjects.some((subject) => subject.name === normalized)) return state;
+          return {
+            subjects: [
+              ...state.subjects,
+              {
+                id: uid('subject'),
+                name: normalized,
+                color: color || '#c084fc',
+                completed: false,
+                completedAt: null,
+                order: nextOrder(state.subjects)
+              }
+            ]
           };
-          return { topics: [...state.topics, topic] };
         }),
 
       addTopic: ({ subject, color, topicName }) =>
         set((state) => {
-          const subjectTopics = state.topics.filter((topic) => topic.subject === subject);
+          const normalizedSubject = normalizeSubjectName(subject);
+          if (!normalizedSubject) return state;
+          const subjectTopics = state.topics.filter((topic) => topic.subject === normalizedSubject);
           const topic = {
             id: uid('topic'),
-            subject,
+            subject: normalizedSubject,
             topicName,
             subtopics: [],
+            completed: false,
+            completedAt: null,
             order: nextOrder(subjectTopics),
-            color
+            color: color || '#c084fc'
           };
-          return { topics: [...state.topics, topic] };
+          const hasSubject = state.subjects.some((entry) => entry.name === normalizedSubject);
+          return {
+            topics: [...state.topics, topic],
+            subjects: hasSubject
+              ? state.subjects
+              : [
+                  ...state.subjects,
+                  {
+                    id: uid('subject'),
+                    name: normalizedSubject,
+                    color: color || '#c084fc',
+                    completed: false,
+                    completedAt: null,
+                    order: nextOrder(state.subjects)
+                  }
+                ]
+          };
         }),
 
       addSubtopic: (topicId, name) =>
@@ -135,6 +184,8 @@ export const useAppStore = create(
             };
             return {
               ...topic,
+              completed: false,
+              completedAt: null,
               subtopics: [...topic.subtopics, subtopic]
             };
           })
@@ -143,6 +194,16 @@ export const useAppStore = create(
       updateTopic: (topicId, patch) =>
         set((state) => ({
           topics: state.topics.map((topic) => (topic.id === topicId ? { ...topic, ...patch } : topic))
+        })),
+
+      renameSubject: (previousSubject, nextSubject) =>
+        set((state) => ({
+          subjects: state.subjects.map((subject) =>
+            subject.name === previousSubject ? { ...subject, name: nextSubject } : subject
+          ),
+          topics: state.topics.map((topic) =>
+            topic.subject === previousSubject ? { ...topic, subject: nextSubject } : topic
+          )
         })),
 
       updateSubtopic: (topicId, subtopicId, patch) =>
@@ -176,6 +237,39 @@ export const useAppStore = create(
           })
         })),
 
+      toggleTopicCompleted: (topicId, completed) =>
+        set((state) => ({
+          topics: state.topics.map((topic) => {
+            if (topic.id !== topicId) return topic;
+            return {
+              ...topic,
+              completed: Boolean(completed),
+              completedAt: completed ? new Date().toISOString() : null
+            };
+          })
+        })),
+
+      toggleSubjectCompleted: (subject, completed) =>
+        set((state) => ({
+          subjects: state.subjects.map((entry) =>
+            entry.name !== subject
+              ? entry
+              : {
+                  ...entry,
+                  completed: Boolean(completed),
+                  completedAt: completed ? new Date().toISOString() : null
+                }
+          ),
+          topics: state.topics.map((topic) => {
+            if (topic.subject !== subject || topic.subtopics.length > 0) return topic;
+            return {
+              ...topic,
+              completed: Boolean(completed),
+              completedAt: completed ? new Date().toISOString() : null
+            };
+          })
+        })),
+
       deleteTopic: (topicId) =>
         set((state) => ({
           topics: state.topics.filter((topic) => topic.id !== topicId)
@@ -183,6 +277,7 @@ export const useAppStore = create(
 
       deleteSubject: (subject) =>
         set((state) => ({
+          subjects: state.subjects.filter((entry) => entry.name !== subject),
           topics: state.topics.filter((topic) => topic.subject !== subject)
         })),
 
@@ -321,6 +416,10 @@ export const useAppStore = create(
             if (topic.id !== active.topicId) return topic;
             return {
               ...topic,
+              completed: completeEntireTopic && topic.subtopics.length === 0 ? true : topic.completed,
+              completedAt: completeEntireTopic && topic.subtopics.length === 0
+                ? completionTimestamp
+                : topic.completedAt,
               subtopics: topic.subtopics.map((subtopic) => {
                 const isTargetSubtopic = Boolean(targetSubtopicId) && subtopic.id === targetSubtopicId;
                 const shouldMarkCompleted = completeEntireTopic || (markCompleted && isTargetSubtopic);
@@ -344,9 +443,23 @@ export const useAppStore = create(
       },
 
       importData: (payload) => {
+        const fallbackSubjects = deriveSubjectsFromTopics(payload?.topics || []);
+        const payloadSubjects = Array.isArray(payload?.subjects) ? payload.subjects : [];
+        const mergedSubjects = payloadSubjects.length
+          ? payloadSubjects.map((subject, index) => ({
+              id: subject.id || uid('subject'),
+              name: normalizeSubjectName(subject.name),
+              color: subject.color || '#c084fc',
+              completed: Boolean(subject.completed),
+              completedAt: subject.completedAt || null,
+              order: subject.order || index + 1
+            })).filter((subject) => subject.name)
+          : fallbackSubjects;
+
         const merged = {
           ...initialState,
           ...payload,
+          subjects: mergedSubjects,
           streak: {
             ...initialStreak,
             ...(payload?.streak || {})

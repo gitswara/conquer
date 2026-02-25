@@ -1,98 +1,68 @@
 import { useState } from 'react';
 import { formatISODate } from '../../utils/dateUtils';
 import { formatMinutes } from '../../utils/timeUtils';
+import InlineEditableName from './InlineEditableName';
 
 export default function SubtopicRow({
-  topic,
   subtopic,
+  number,
   onToggleComplete,
   onRename,
-  onUpdateNotes,
   onDelete
 }) {
-  const [editingName, setEditingName] = useState(false);
-  const [editingNotes, setEditingNotes] = useState(false);
-  const [draftName, setDraftName] = useState(subtopic.name);
-  const [draftNotes, setDraftNotes] = useState(subtopic.notes || '');
+  const [editingSignal, setEditingSignal] = useState(0);
 
   return (
-    <tr style={{ borderTop: '1px solid #eadcfb' }}>
+    <tr style={{ borderTop: '1px solid var(--table-subtopic-border)' }}>
+      <td className="syllabus-number">{number}</td>
       <td>
         <input
           type="checkbox"
           checked={subtopic.completed}
-          onChange={(e) => onToggleComplete(e.target.checked)}
+          onChange={(event) => {
+            event.stopPropagation();
+            onToggleComplete(event.target.checked);
+          }}
+          onClick={(event) => event.stopPropagation()}
           aria-label={`Mark ${subtopic.name} complete`}
           style={{ width: 18, height: 18 }}
         />
       </td>
-      <td className="muted">{topic.subject}</td>
-      <td>{topic.topicName}</td>
-      <td>
-        {editingName ? (
-          <input
-            value={draftName}
-            onChange={(e) => setDraftName(e.target.value)}
-            onBlur={() => {
-              onRename(draftName);
-              setEditingName(false);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                onRename(draftName);
-                setEditingName(false);
-              }
-            }}
-            autoFocus
-          />
-        ) : (
-          <button
-            onClick={() => setEditingName(true)}
-            style={{
-              border: 0,
-              background: 'transparent',
-              color: 'inherit',
-              padding: 0,
-              textAlign: 'left',
-              cursor: 'text'
-            }}
-          >
-            {subtopic.name}
-          </button>
-        )}
+      <td className="syllabus-name-cell level-subtopic">
+        <InlineEditableName
+          value={subtopic.name}
+          onSave={onRename}
+          ariaLabel={`Rename subtopic ${subtopic.name}`}
+          editingSignal={editingSignal}
+        />
       </td>
       <td>{formatMinutes(subtopic.timeSpentMinutes || 0)}</td>
       <td>{subtopic.completedAt ? formatISODate(subtopic.completedAt) : '—'}</td>
       <td>
-        {editingNotes ? (
-          <textarea
-            value={draftNotes}
-            onChange={(e) => setDraftNotes(e.target.value)}
-            onBlur={() => {
-              onUpdateNotes(draftNotes);
-              setEditingNotes(false);
-            }}
-            autoFocus
-            rows={2}
-          />
-        ) : (
+        <div className="syllabus-actions hover-desktop">
           <button
-            onClick={() => setEditingNotes(true)}
-            style={{
-              border: 0,
-              background: 'transparent',
-              color: 'inherit',
-              padding: 0,
-              textAlign: 'left',
-              cursor: 'text'
+            className="icon-action rename"
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              setEditingSignal((prev) => prev + 1);
             }}
+            aria-label={`Rename subtopic ${subtopic.name}`}
           >
-            {subtopic.notes || '—'}
+            ✎
           </button>
-        )}
-      </td>
-      <td>
-        <button className="table-action danger" onClick={onDelete} aria-label="Delete subtopic">Delete Subtopic</button>
+          <button
+            className="icon-action trash"
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onDelete();
+            }}
+            aria-label={`Delete subtopic ${subtopic.name}`}
+          >
+            🗑
+          </button>
+        </div>
       </td>
     </tr>
   );

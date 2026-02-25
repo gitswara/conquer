@@ -8,7 +8,7 @@ import AddSubtopicModal from './AddSubtopicModal';
 
 const TOTAL_STEPS = 4;
 
-export default function SetupWizard({ topics, onAddSubject, onAddTopic, onAddSubtopic, onFinish }) {
+export default function SetupWizard({ subjects, topics, onAddSubject, onAddTopic, onAddSubtopic, onFinish }) {
   const [step, setStep] = useState(1);
   const [examName, setExamName] = useState('');
   const [examDate, setExamDate] = useState('');
@@ -41,19 +41,47 @@ export default function SetupWizard({ topics, onAddSubject, onAddTopic, onAddSub
     setRevisionPeriods((prev) => prev.filter((period) => period.id !== id));
   }
 
+  function handleStepEnter(event) {
+    if (event.key !== 'Enter') return;
+    if (!('value' in event.target)) return;
+
+    const rawValue = String(event.target.value || '').trim();
+    if (!rawValue) return;
+
+    event.preventDefault();
+
+    if (step === 1 && canContinueStep1) {
+      setStep((prev) => Math.min(TOTAL_STEPS, prev + 1));
+    } else if (step === 2) {
+      setStep((prev) => Math.min(TOTAL_STEPS, prev + 1));
+    } else if (step === 3 && canContinueStep3) {
+      setStep((prev) => Math.min(TOTAL_STEPS, prev + 1));
+    }
+  }
+
   return (
     <div className="section-stack">
       <PixelCard title={`STEP [${step}/${TOTAL_STEPS}]`}>
         {step === 1 ? (
           <div className="section-stack">
             <label className="pixel-label" style={{ fontSize: 10 }}>EXAM NAME</label>
-            <input className="pixel-input-cursor" value={examName} onChange={(e) => setExamName(e.target.value)} />
+            <input
+              className="pixel-input-cursor"
+              value={examName}
+              onChange={(e) => setExamName(e.target.value)}
+              onKeyDown={handleStepEnter}
+            />
 
             <label className="pixel-label" style={{ fontSize: 10 }}>EXAM DATE</label>
-            <input type="date" value={examDate} onChange={(e) => setExamDate(e.target.value)} />
+            <input type="date" value={examDate} onChange={(e) => setExamDate(e.target.value)} onKeyDown={handleStepEnter} />
 
             <label className="pixel-label" style={{ fontSize: 10 }}>SYLLABUS COMPLETION TARGET DATE</label>
-            <input type="date" value={syllabusDeadline} onChange={(e) => setSyllabusDeadline(e.target.value)} />
+            <input
+              type="date"
+              value={syllabusDeadline}
+              onChange={(e) => setSyllabusDeadline(e.target.value)}
+              onKeyDown={handleStepEnter}
+            />
 
             {!canContinueStep1 ? (
               <div className="muted" style={{ fontSize: 12 }}>
@@ -72,6 +100,7 @@ export default function SetupWizard({ topics, onAddSubject, onAddTopic, onAddSub
                   placeholder="Label (e.g. Revision Round 1)"
                   value={period.label}
                   onChange={(e) => updateRevision(period.id, { label: e.target.value })}
+                  onKeyDown={handleStepEnter}
                 />
                 <div className="row-wrap" style={{ marginTop: 8 }}>
                   <input
@@ -79,12 +108,14 @@ export default function SetupWizard({ topics, onAddSubject, onAddTopic, onAddSub
                     value={period.startDate}
                     onChange={(e) => updateRevision(period.id, { startDate: e.target.value })}
                     aria-label="Revision start date"
+                    onKeyDown={handleStepEnter}
                   />
                   <input
                     type="date"
                     value={period.endDate}
                     onChange={(e) => updateRevision(period.id, { endDate: e.target.value })}
                     aria-label="Revision end date"
+                    onKeyDown={handleStepEnter}
                   />
                   <PixelButton variant="danger" onClick={() => removeRevision(period.id)}>
                     DELETE
@@ -162,6 +193,7 @@ export default function SetupWizard({ topics, onAddSubject, onAddTopic, onAddSub
       <AddTopicModal
         open={showTopicModal}
         onClose={() => setShowTopicModal(false)}
+        subjects={subjects}
         topics={topics}
         onSubmit={(payload) => {
           onAddTopic(payload);

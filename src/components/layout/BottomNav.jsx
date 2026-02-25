@@ -1,7 +1,8 @@
 const TABS = [
   { id: 'HOME', label: '🏠 HOME' },
   { id: 'STUDY', label: '⏱️ STUDY' },
-  { id: 'PLANNER', label: '📋 PLANNER' }
+  { id: 'PLANNER', label: '📋 PLANNER' },
+  { id: 'SETTINGS', label: '⚙️ SETTINGS' }
 ];
 
 export default function BottomNav({ activeTab, onSelect }) {
@@ -13,14 +14,14 @@ export default function BottomNav({ activeTab, onSelect }) {
         bottom: 0,
         left: 0,
         right: 0,
-        background: '#f7f1ff',
-        borderTop: '2px solid #c4a5f5',
+        background: 'var(--nav-bg)',
+        borderTop: '2px solid var(--nav-border)',
         display: 'grid',
-        gridTemplateColumns: 'repeat(3, 1fr)',
+        gridTemplateColumns: `repeat(${TABS.length}, 1fr)`,
         zIndex: 20
       }}
     >
-      {TABS.map((tab) => {
+      {TABS.map((tab, index) => {
         const active = tab.id === activeTab;
         return (
           <button
@@ -28,7 +29,7 @@ export default function BottomNav({ activeTab, onSelect }) {
             onClick={() => onSelect(tab.id)}
             style={{
               border: 0,
-              borderRight: '1px solid #d5bdf4',
+              borderRight: index < TABS.length - 1 ? '1px solid var(--nav-border)' : 'none',
               background: 'transparent',
               color: active ? 'var(--accent-primary)' : 'var(--text-primary)',
               padding: '12px 8px',

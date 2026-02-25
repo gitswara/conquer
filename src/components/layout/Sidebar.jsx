@@ -3,15 +3,16 @@ import PixelButton from '../ui/PixelButton';
 const TABS = [
   { id: 'HOME', label: '🏠 HOME' },
   { id: 'STUDY', label: '⏱️ STUDY' },
-  { id: 'PLANNER', label: '📋 PLANNER' }
+  { id: 'PLANNER', label: '📋 PLANNER' },
+  { id: 'SETTINGS', label: '⚙️ SETTINGS' }
 ];
 
 export default function Sidebar({ activeTab, onSelect }) {
   return (
     <aside
       style={{
-        borderRight: '2px solid #d6bdf7',
-        background: '#f8f3ff',
+        borderRight: '2px solid var(--nav-border)',
+        background: 'var(--nav-bg)',
         padding: 16,
         display: 'flex',
         flexDirection: 'column',

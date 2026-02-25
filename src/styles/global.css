@@ -1,8 +1,11 @@
 @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Space+Mono:wght@400;700&display=swap');
 
 :root {
+  --base-font-size: 16px;
   --bg-deep: #f6f1ff;
   --bg-card: #ffffff;
+  --bg-soft: #f8f3ff;
+  --bg-soft-alt: #f7f1ff;
   --border-dim: #7c3aed;
   --border-bright: #5b21b6;
   --accent-primary: #6d28d9;
@@ -14,6 +17,42 @@
   --danger: #f87171;
   --graph-bar: #6d28d9;
   --graph-bar-today: #9333ea;
+  --bg-glow-a: rgba(124, 58, 237, 0.14);
+  --bg-glow-b: rgba(147, 51, 234, 0.1);
+  --bg-grid-line: rgba(124, 58, 237, 0.015);
+  --input-border: #bca4e8;
+  --focus-ring: rgba(124, 58, 237, 0.2);
+  --button-bg: #efe7ff;
+  --button-shadow: #3b0764;
+  --button-active-bg: #e9ddff;
+  --nav-bg: #f8f3ff;
+  --nav-border: #d6bdf7;
+  --table-border: #d9c8f3;
+  --table-head-bg: #f5edff;
+  --table-subject-bg: #f6f0ff;
+  --table-subject-hover: #ede2ff;
+  --table-topic-bg: #fcfaff;
+  --table-topic-hover: #f4edff;
+  --table-subtopic-border: #eadcfb;
+  --toolbar-bg: #faf7ff;
+  --toolbar-border: #d9c8f3;
+  --inline-chip-bg: #f5edff;
+  --landing-glow-a: rgba(124, 58, 237, 0.25);
+  --landing-glow-b: rgba(167, 84, 248, 0.2);
+  --landing-grad-start: #faf6ff;
+  --landing-grad-end: #f4ecff;
+}
+
+html.font-sm {
+  --base-font-size: 12.8px;
+}
+
+html.font-md {
+  --base-font-size: 16px;
+}
+
+html.font-lg {
+  --base-font-size: 19.2px;
 }
 
 * {
@@ -28,10 +67,11 @@ body,
 }
 
 body {
+  font-size: var(--base-font-size);
   font-family: 'Space Mono', 'Courier New', monospace;
   background:
-    radial-gradient(circle at 12% 5%, rgba(124, 58, 237, 0.14), transparent 38%),
-    radial-gradient(circle at 86% 92%, rgba(147, 51, 234, 0.1), transparent 34%),
+    radial-gradient(circle at 12% 5%, var(--bg-glow-a), transparent 38%),
+    radial-gradient(circle at 86% 92%, var(--bg-glow-b), transparent 34%),
     var(--bg-deep);
   color: var(--text-primary);
 }
@@ -50,8 +90,8 @@ body {
   pointer-events: none;
   background-image: repeating-linear-gradient(
     to bottom,
-    rgba(124, 58, 237, 0.015),
-    rgba(124, 58, 237, 0.015) 1px,
+    var(--bg-grid-line),
+    var(--bg-grid-line) 1px,
     transparent 1px,
     transparent 3px
   );
@@ -77,7 +117,7 @@ textarea {
   width: 100%;
   background: #ffffff;
   color: var(--text-primary);
-  border: 2px solid #bca4e8;
+  border: 2px solid var(--input-border);
   border-radius: 6px;
   padding: 11px 12px;
   font-family: 'Space Mono', monospace;
@@ -89,7 +129,7 @@ textarea:focus,
 button:focus-visible {
   outline: none;
   border-color: var(--border-bright);
-  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.2);
+  box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
 input:focus,
@@ -124,14 +164,14 @@ td {
 
 th {
   color: var(--text-dim);
-  font-size: 11px;
+  font-size: calc(var(--base-font-size) * 0.6875);
 }
 
 .field-label {
   display: block;
   margin-bottom: 6px;
   font-family: 'Press Start 2P', monospace;
-  font-size: 10px;
+  font-size: calc(var(--base-font-size) * 0.625);
 }
 
 .control-grid {
@@ -153,9 +193,9 @@ th {
   display: grid;
   place-items: center;
   background:
-    radial-gradient(circle at 18% 22%, rgba(124, 58, 237, 0.25), transparent 32%),
-    radial-gradient(circle at 82% 78%, rgba(167, 84, 248, 0.2), transparent 30%),
-    linear-gradient(180deg, #faf6ff 0%, #f4ecff 100%);
+    radial-gradient(circle at 18% 22%, var(--landing-glow-a), transparent 32%),
+    radial-gradient(circle at 82% 78%, var(--landing-glow-b), transparent 30%),
+    linear-gradient(180deg, var(--landing-grad-start) 0%, var(--landing-grad-end) 100%);
 }
 
 .hub-grid {

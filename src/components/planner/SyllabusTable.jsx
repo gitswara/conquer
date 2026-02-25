@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import PixelCard from '../ui/PixelCard';
 import PixelButton from '../ui/PixelButton';
 import PixelModal from '../ui/PixelModal';
@@ -12,38 +12,107 @@ import { completionPercent } from '../../utils/progressUtils';
 import { formatMinutes } from '../../utils/timeUtils';
 
 function topicStats(topic) {
+  const subtopicTotal = topic.subtopics.length;
+  const subtopicCompleted = topic.subtopics.filter((subtopic) => subtopic.completed).length;
+
+  if (!topic.subtopics.length) {
+    return {
+      total: 1,
+      completed: topic.completed ? 1 : 0,
+      minutes: 0,
+      hasSubtopics: false,
+      completedAt: topic.completed ? topic.completedAt : null,
+      subtopicTotal,
+      subtopicCompleted
+    };
+  }
+
   const total = topic.subtopics.length;
   const completed = topic.subtopics.filter((subtopic) => subtopic.completed).length;
   const minutes = topic.subtopics.reduce((acc, subtopic) => acc + (subtopic.timeSpentMinutes || 0), 0);
-  return { total, completed, minutes };
-}
-
-function subjectStats(topics) {
-  const allSubtopics = topics.flatMap((topic) => topic.subtopics);
-  const total = allSubtopics.length;
-  const completed = allSubtopics.filter((subtopic) => subtopic.completed).length;
-  const minutes = allSubtopics.reduce((acc, subtopic) => acc + (subtopic.timeSpentMinutes || 0), 0);
+  const completedDates = topic.subtopics
+    .map((subtopic) => subtopic.completedAt)
+    .filter(Boolean)
+    .sort();
   return {
     total,
     completed,
     minutes,
-    completion: completionPercent(completed, total)
+    hasSubtopics: true,
+    completedAt: completed === total ? completedDates[completedDates.length - 1] || null : null,
+    subtopicTotal,
+    subtopicCompleted
+  };
+}
+
+function subjectStats(topics) {
+  let totalUnits = 0;
+  let completedUnits = 0;
+  let minutes = 0;
+  const completionDates = [];
+  let hasSubtopics = false;
+  let topicTotal = topics.length;
+  let topicCompleted = 0;
+
+  topics.forEach((topic) => {
+    const completedAtTopicLevel = topic.subtopics.length
+      ? topic.subtopics.length > 0 && topic.subtopics.every((subtopic) => subtopic.completed)
+      : Boolean(topic.completed);
+    if (completedAtTopicLevel) topicCompleted += 1;
+
+    if (!topic.subtopics.length) {
+      totalUnits += 1;
+      if (topic.completed) {
+        completedUnits += 1;
+        if (topic.completedAt) completionDates.push(topic.completedAt);
+      }
+      return;
+    }
+
+    hasSubtopics = true;
+    totalUnits += topic.subtopics.length;
+    topic.subtopics.forEach((subtopic) => {
+      minutes += subtopic.timeSpentMinutes || 0;
+      if (subtopic.completed) {
+        completedUnits += 1;
+        if (subtopic.completedAt) completionDates.push(subtopic.completedAt);
+      }
+    });
+  });
+
+  completionDates.sort();
+  return {
+    totalUnits,
+    completedUnits,
+    minutes,
+    completion: completionPercent(completedUnits, totalUnits),
+    hasSubtopics,
+    completedAt: completedUnits === totalUnits ? completionDates[completionDates.length - 1] || null : null,
+    topicTotal,
+    topicCompleted
   };
 }
 
 export default function SyllabusTable({
+  subjects = [],
   topics,
   onAddSubject,
   onAddTopic,
   onAddSubtopic,
+  onRenameSubject,
+  onUpdateTopic,
   onUpdateSubtopic,
   onToggleSubtopic,
+  onToggleTopic,
+  onToggleSubject,
   onDeleteSubject,
   onDeleteTopic,
   onDeleteSubtopic
 }) {
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [subjectExpanded, setSubjectExpanded] = useState({});
+  const [topicExpanded, setTopicExpanded] = useState({});
 
   const [showSubjectModal, setShowSubjectModal] = useState(false);
   const [showTopicModal, setShowTopicModal] = useState(false);
@@ -55,27 +124,111 @@ export default function SyllabusTable({
 
   const grouped = useMemo(() => {
     const map = new Map();
-    topics.forEach((topic) => {
-      if (!map.has(topic.subject)) map.set(topic.subject, []);
-      map.get(topic.subject).push(topic);
+    const orderedSubjects = [...subjects].sort((a, b) => (a.order || 0) - (b.order || 0));
+
+    orderedSubjects.forEach((subject, index) => {
+      map.set(subject.name, {
+        subject: subject.name,
+        color: subject.color || '#c084fc',
+        topics: [],
+        sortKey: subject.order || index + 1,
+        completed: Boolean(subject.completed),
+        completedAt: subject.completedAt || null
+      });
     });
 
-    return [...map.entries()]
-      .map(([subject, subjectTopics]) => ({
-        subject,
-        color: subjectTopics[0]?.color,
-        topics: [...subjectTopics].sort((a, b) => a.order - b.order)
-      }))
-      .sort((a, b) => a.subject.localeCompare(b.subject));
-  }, [topics]);
+    topics.forEach((topic, index) => {
+      if (!map.has(topic.subject)) {
+        map.set(topic.subject, {
+          subject: topic.subject,
+          color: topic.color || '#c084fc',
+          topics: [],
+          sortKey: 10_000 + index,
+          completed: false,
+          completedAt: null
+        });
+      }
+
+      const group = map.get(topic.subject);
+      group.topics.push(topic);
+      if (!group.color && topic.color) group.color = topic.color;
+    });
+
+    return [...map.values()]
+      .sort((a, b) => a.sortKey - b.sortKey || a.subject.localeCompare(b.subject))
+      .map((group) => ({
+        subject: group.subject,
+        color: group.color,
+        completed: group.completed,
+        completedAt: group.completedAt,
+        topics: [...group.topics].sort((a, b) => a.order - b.order)
+      }));
+  }, [subjects, topics]);
+
+  useEffect(() => {
+    setSubjectExpanded((previous) => {
+      const next = {};
+      grouped.forEach((group) => {
+        next[group.subject] = previous[group.subject] ?? true;
+      });
+      return next;
+    });
+  }, [grouped]);
+
+  useEffect(() => {
+    setTopicExpanded((previous) => {
+      const next = {};
+      grouped.forEach((group) => {
+        group.topics.forEach((topic) => {
+          next[topic.id] = previous[topic.id] ?? false;
+        });
+      });
+      return next;
+    });
+  }, [grouped]);
+
+  const numbering = useMemo(() => {
+    const subjectNumbers = new Map();
+    const topicNumbers = new Map();
+    const subtopicNumbers = new Map();
+
+    grouped.forEach((group, subjectIndex) => {
+      const subjectNumber = `${subjectIndex + 1}.`;
+      subjectNumbers.set(group.subject, subjectNumber);
+
+      group.topics.forEach((topic, topicIndex) => {
+        const topicNumber = `${subjectIndex + 1}.${topicIndex + 1}`;
+        topicNumbers.set(topic.id, topicNumber);
+
+        [...topic.subtopics]
+          .sort((a, b) => a.order - b.order)
+          .forEach((subtopic, subtopicIndex) => {
+            subtopicNumbers.set(`${topic.id}:${subtopic.id}`, `${topicNumber}.${subtopicIndex + 1}`);
+          });
+      });
+    });
+
+    return { subjectNumbers, topicNumbers, subtopicNumbers };
+  }, [grouped]);
 
   const normalizedQuery = query.trim().toLowerCase();
 
   const filteredGroups = useMemo(() => {
-    function statusAllowed(subtopic) {
+    function statusAllowedSubtopic(subtopic) {
       if (statusFilter === 'COMPLETE') return subtopic.completed;
       if (statusFilter === 'INCOMPLETE') return !subtopic.completed;
       return true;
+    }
+
+    function topicStatusMatch(topic) {
+      if (statusFilter === 'ALL') return true;
+      if (!topic.subtopics.length) {
+        return statusFilter === 'COMPLETE' ? Boolean(topic.completed) : !topic.completed;
+      }
+      if (statusFilter === 'COMPLETE') {
+        return topic.subtopics.some((subtopic) => subtopic.completed);
+      }
+      return topic.subtopics.some((subtopic) => !subtopic.completed);
     }
 
     return grouped
@@ -85,33 +238,44 @@ export default function SyllabusTable({
         const visibleTopics = group.topics
           .map((topic) => {
             const topicMatch = topic.topicName.toLowerCase().includes(normalizedQuery);
-            const sorted = [...topic.subtopics].sort((a, b) => a.order - b.order).filter(statusAllowed);
-            const subtopicFiltered =
-              normalizedQuery && !subjectMatch && !topicMatch
-                ? sorted.filter((subtopic) => subtopic.name.toLowerCase().includes(normalizedQuery))
-                : sorted;
+            const sortedSubtopics = [...topic.subtopics].sort((a, b) => a.order - b.order);
+            const statusFilteredSubtopics = sortedSubtopics.filter(statusAllowedSubtopic);
+            const visibleSubtopics = normalizedQuery && !subjectMatch && !topicMatch
+              ? statusFilteredSubtopics.filter((subtopic) => subtopic.name.toLowerCase().includes(normalizedQuery))
+              : statusFilteredSubtopics;
 
             return {
               ...topic,
-              visibleSubtopics: subtopicFiltered
+              topicStatusMatch: topicStatusMatch(topic),
+              visibleSubtopics
             };
           })
           .filter((topic) => {
+            if (!topic.topicStatusMatch) return false;
             if (!normalizedQuery) return true;
             const topicMatch = topic.topicName.toLowerCase().includes(normalizedQuery);
             return subjectMatch || topicMatch || topic.visibleSubtopics.length > 0;
           });
 
+        const subjectStatusMatch = statusFilter === 'ALL'
+          ? true
+          : (statusFilter === 'COMPLETE' ? group.completed : !group.completed);
+
+        const groupStatusMatch = group.topics.length ? visibleTopics.length > 0 : subjectStatusMatch;
+        const groupQueryMatch = !normalizedQuery || subjectMatch || visibleTopics.length > 0;
+
         return {
           ...group,
-          topics: visibleTopics
+          topics: visibleTopics,
+          groupStatusMatch,
+          groupQueryMatch
         };
       })
-      .filter((group) => group.topics.length > 0 || group.subject.toLowerCase().includes(normalizedQuery));
+      .filter((group) => group.groupStatusMatch && group.groupQueryMatch);
   }, [grouped, normalizedQuery, statusFilter]);
 
   const totals = useMemo(() => {
-    const subjectCount = new Set(topics.map((topic) => topic.subject)).size;
+    const subjectCount = subjects.length || new Set(topics.map((topic) => topic.subject)).size;
     const topicCount = topics.length;
     const allSubtopics = topics.flatMap((topic) => topic.subtopics);
     const subtopicCount = allSubtopics.length;
@@ -124,9 +288,19 @@ export default function SyllabusTable({
       percent: completionPercent(completedCount, subtopicCount),
       minutes
     };
-  }, [topics]);
+  }, [subjects, topics]);
 
-  if (!topics.length) {
+  function handleExpandAll() {
+    setSubjectExpanded(Object.fromEntries(grouped.map((group) => [group.subject, true])));
+    setTopicExpanded(Object.fromEntries(grouped.flatMap((group) => group.topics.map((topic) => [topic.id, true]))));
+  }
+
+  function handleCollapseAll() {
+    setSubjectExpanded(Object.fromEntries(grouped.map((group) => [group.subject, false])));
+    setTopicExpanded(Object.fromEntries(grouped.flatMap((group) => group.topics.map((topic) => [topic.id, false]))));
+  }
+
+  if (!grouped.length) {
     return (
       <PixelCard title="SYLLABUS">
         <p>No topics yet. Start by adding a subject.</p>
@@ -153,7 +327,7 @@ export default function SyllabusTable({
             <input
               id="syllabusSearch"
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(event) => setQuery(event.target.value)}
               placeholder="Search subject, topic, or subtopic"
               aria-label="Search syllabus"
             />
@@ -163,7 +337,7 @@ export default function SyllabusTable({
             <select
               id="syllabusFilter"
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={(event) => setStatusFilter(event.target.value)}
               aria-label="Filter completion status"
             >
               <option value="ALL">ALL</option>
@@ -175,38 +349,65 @@ export default function SyllabusTable({
 
         <div className="toolbar-panel" style={{ marginBottom: 12 }}>
           <div className="field-label">ADD ITEMS</div>
-          <div className="row-wrap">
-            <PixelButton onClick={() => setShowSubjectModal(true)}>+ ADD SUBJECT</PixelButton>
-            <PixelButton
-              onClick={() => {
-                setTopicModalSubject('');
-                setShowTopicModal(true);
-              }}
-            >
-              + ADD TOPIC
-            </PixelButton>
-            <PixelButton
-              onClick={() => {
-                setSubtopicModalTopicId('');
-                setShowSubtopicModal(true);
-              }}
-            >
-              + ADD SUBTOPIC
-            </PixelButton>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
+            <div className="row-wrap">
+              <PixelButton onClick={() => setShowSubjectModal(true)}>+ ADD SUBJECT</PixelButton>
+              <PixelButton
+                onClick={() => {
+                  setTopicModalSubject('');
+                  setShowTopicModal(true);
+                }}
+              >
+                + ADD TOPIC
+              </PixelButton>
+              <PixelButton
+                onClick={() => {
+                  setSubtopicModalTopicId('');
+                  setShowSubtopicModal(true);
+                }}
+              >
+                + ADD SUBTOPIC
+              </PixelButton>
+            </div>
+
+            <div className="row-wrap">
+              <button type="button" className="table-action" onClick={handleExpandAll}>⊞ EXPAND ALL</button>
+              <button type="button" className="table-action" onClick={handleCollapseAll}>⊟ COLLAPSE ALL</button>
+            </div>
           </div>
         </div>
 
+        <div className="stats-strip" style={{ marginBottom: 12 }}>
+          TOTAL: {totals.subjectCount} subjects | {totals.topicCount} topics | {totals.subtopicCount} subtopics |
+          {' '}{totals.percent}% complete | {formatMinutes(totals.minutes)} studied
+        </div>
+
         <div style={{ overflowX: 'auto', maxWidth: '100%' }}>
-          <table className="planner-table readable-table" style={{ minWidth: 1080, width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <table
+            className="planner-table readable-table"
+            style={{
+              minWidth: 760,
+              width: '100%',
+              borderCollapse: 'collapse',
+              fontSize: 13,
+              tableLayout: 'fixed'
+            }}
+          >
+            <colgroup>
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '8%' }} />
+              <col style={{ width: '42%' }} />
+              <col style={{ width: '14%' }} />
+              <col style={{ width: '14%' }} />
+              <col style={{ width: '12%' }} />
+            </colgroup>
             <thead>
               <tr style={{ borderBottom: '2px solid var(--border-dim)' }}>
-                <th align="left"></th>
-                <th align="left">SUBJECT</th>
-                <th align="left">TOPIC</th>
-                <th align="left">SUBTOPIC</th>
+                <th align="left">#</th>
+                <th align="left">✓</th>
+                <th align="left">NAME</th>
                 <th align="left">TIME SPENT</th>
                 <th align="left">COMPLETED ON</th>
-                <th align="left">NOTES</th>
                 <th align="left">ACTIONS</th>
               </tr>
             </thead>
@@ -214,14 +415,32 @@ export default function SyllabusTable({
               {filteredGroups.map((group) => {
                 const fullGroupTopics = grouped.find((entry) => entry.subject === group.subject)?.topics || [];
                 const groupStats = subjectStats(fullGroupTopics);
+                const isSubjectExpanded = subjectExpanded[group.subject] ?? true;
+                const canDirectlyToggleSubject = fullGroupTopics.length === 0;
+                const isSubjectCompleted = canDirectlyToggleSubject
+                  ? Boolean(group.completed)
+                  : fullGroupTopics.every((topic) =>
+                      topic.subtopics.length
+                        ? topic.subtopics.every((subtopic) => subtopic.completed)
+                        : Boolean(topic.completed)
+                    );
 
                 return (
                   <Fragment key={group.subject}>
                     <SubjectGroup
-                      key={`${group.subject}-header`}
                       subject={group.subject}
-                      color={group.color}
                       stats={groupStats}
+                      number={numbering.subjectNumbers.get(group.subject) || '—'}
+                      onRowToggle={() =>
+                        setSubjectExpanded((previous) => ({
+                          ...previous,
+                          [group.subject]: !isSubjectExpanded
+                        }))
+                      }
+                      showCompletionCheckbox={canDirectlyToggleSubject}
+                      completed={isSubjectCompleted}
+                      completedOn={fullGroupTopics.length ? groupStats.completedAt : (group.completedAt || null)}
+                      onToggleComplete={(checked) => onToggleSubject(group.subject, checked)}
                       onAddTopic={() => {
                         setTopicModalSubject(group.subject);
                         setShowTopicModal(true);
@@ -233,64 +452,79 @@ export default function SyllabusTable({
                           name: group.subject
                         })
                       }
+                      onRenameSubject={(name) => {
+                        if (name === group.subject) return;
+                        onRenameSubject(group.subject, name);
+                      }}
                     />
 
-                    {group.topics.map((topic) => {
-                      const stats = topicStats(topic);
-                      return (
-                        <Fragment key={topic.id}>
-                          <TopicRow
-                            topic={topic}
-                            stats={stats}
-                            onAddSubtopic={() => {
-                              setSubtopicModalTopicId(topic.id);
-                              setShowSubtopicModal(true);
-                            }}
-                            onDelete={() =>
-                              setDeleteState({
-                                type: 'topic',
-                                topicId: topic.id,
-                                name: topic.topicName
-                              })
-                            }
-                          />
+                    {isSubjectExpanded
+                      ? group.topics.map((topic) => {
+                          const stats = topicStats(topic);
+                          const isTopicExpanded = topicExpanded[topic.id] ?? false;
+                          return (
+                            <Fragment key={topic.id}>
+                              <TopicRow
+                                topic={topic}
+                                stats={stats}
+                                number={numbering.topicNumbers.get(topic.id) || '—'}
+                                onRowToggle={() =>
+                                  setTopicExpanded((previous) => ({
+                                    ...previous,
+                                    [topic.id]: !isTopicExpanded
+                                  }))
+                                }
+                                showCompletionCheckbox={!topic.subtopics.length}
+                                completed={Boolean(topic.completed)}
+                                completedOn={stats.completedAt}
+                                onToggleComplete={(checked) => onToggleTopic(topic.id, checked)}
+                                onAddSubtopic={() => {
+                                  setSubtopicModalTopicId(topic.id);
+                                  setShowSubtopicModal(true);
+                                }}
+                                onDelete={() =>
+                                  setDeleteState({
+                                    type: 'topic',
+                                    topicId: topic.id,
+                                    name: topic.topicName
+                                  })
+                                }
+                                onRename={(name) => {
+                                  if (name === topic.topicName) return;
+                                  onUpdateTopic(topic.id, { topicName: name });
+                                }}
+                              />
 
-                          {topic.visibleSubtopics.map((subtopic) => (
-                            <SubtopicRow
-                              key={`${topic.id}-${subtopic.id}`}
-                              topic={topic}
-                              subtopic={subtopic}
-                              onToggleComplete={(checked) => onToggleSubtopic(topic.id, subtopic.id, checked)}
-                              onRename={(name) => {
-                                if (!name.trim()) return;
-                                onUpdateSubtopic(topic.id, subtopic.id, { name: name.trim() });
-                              }}
-                              onUpdateNotes={(notes) => onUpdateSubtopic(topic.id, subtopic.id, { notes })}
-                              onDelete={() =>
-                                setDeleteState({
-                                  type: 'subtopic',
-                                  topicId: topic.id,
-                                  subtopicId: subtopic.id,
-                                  name: subtopic.name
-                                })
-                              }
-                            />
-                          ))}
-                        </Fragment>
-                      );
-                    })}
+                              {isTopicExpanded
+                                ? topic.visibleSubtopics.map((subtopic) => (
+                                    <SubtopicRow
+                                      key={`${topic.id}-${subtopic.id}`}
+                                      subtopic={subtopic}
+                                      number={numbering.subtopicNumbers.get(`${topic.id}:${subtopic.id}`) || '—'}
+                                      onToggleComplete={(checked) => onToggleSubtopic(topic.id, subtopic.id, checked)}
+                                      onRename={(name) => {
+                                        if (name === subtopic.name) return;
+                                        onUpdateSubtopic(topic.id, subtopic.id, { name });
+                                      }}
+                                      onDelete={() =>
+                                        setDeleteState({
+                                          type: 'subtopic',
+                                          topicId: topic.id,
+                                          subtopicId: subtopic.id,
+                                          name: subtopic.name
+                                        })
+                                      }
+                                    />
+                                  ))
+                                : null}
+                            </Fragment>
+                          );
+                        })
+                      : null}
                   </Fragment>
                 );
               })}
             </tbody>
-            <tfoot>
-              <tr style={{ position: 'sticky', bottom: 0, borderTop: '2px solid var(--border-bright)' }}>
-                <td colSpan={8}>
-                  TOTAL: {totals.subjectCount} subjects | {totals.topicCount} topics | {totals.subtopicCount} subtopics |
-                  {' '}{totals.percent}% complete | {formatMinutes(totals.minutes)} studied
-                </td>
-              </tr>
-            </tfoot>
           </table>
         </div>
       </PixelCard>
@@ -306,10 +540,15 @@ export default function SyllabusTable({
       <AddTopicModal
         open={showTopicModal}
         onClose={() => setShowTopicModal(false)}
+        subjects={subjects}
         topics={topics}
         defaultSubject={topicModalSubject}
         onSubmit={(payload) => {
           onAddTopic(payload);
+          setSubjectExpanded((previous) => ({
+            ...previous,
+            [payload.subject]: true
+          }));
           setShowTopicModal(false);
         }}
       />
@@ -320,6 +559,17 @@ export default function SyllabusTable({
         defaultTopicId={subtopicModalTopicId}
         onSubmit={({ topicId, name }) => {
           onAddSubtopic(topicId, name);
+          setTopicExpanded((previous) => ({
+            ...previous,
+            [topicId]: true
+          }));
+          const parentSubject = topics.find((topic) => topic.id === topicId)?.subject;
+          if (parentSubject) {
+            setSubjectExpanded((previous) => ({
+              ...previous,
+              [parentSubject]: true
+            }));
+          }
           setShowSubtopicModal(false);
         }}
       />

@@ -5,6 +5,7 @@ import SyllabusTable from './SyllabusTable';
 
 export default function PlannerTab({
   config,
+  subjects,
   topics,
   plannerSubtab,
   onSetSubtab,
@@ -13,8 +14,12 @@ export default function PlannerTab({
   onAddSubject,
   onAddTopic,
   onAddSubtopic,
+  onRenameSubject,
+  onUpdateTopic,
   onUpdateSubtopic,
   onToggleSubtopic,
+  onToggleTopic,
+  onToggleSubject,
   onDeleteSubject,
   onDeleteTopic,
   onDeleteSubtopic,
@@ -23,6 +28,7 @@ export default function PlannerTab({
   if (!config) {
     return (
       <SetupWizard
+        subjects={subjects}
         topics={topics}
         onAddSubject={onAddSubject}
         onAddTopic={onAddTopic}
@@ -53,12 +59,17 @@ export default function PlannerTab({
         <ScheduleTab config={config} onUpdateConfig={onUpdateConfig} />
       ) : (
         <SyllabusTable
+          subjects={subjects}
           topics={topics}
           onAddSubject={onAddSubject}
           onAddTopic={onAddTopic}
           onAddSubtopic={onAddSubtopic}
+          onRenameSubject={onRenameSubject}
+          onUpdateTopic={onUpdateTopic}
           onUpdateSubtopic={onUpdateSubtopic}
           onToggleSubtopic={onToggleSubtopic}
+          onToggleTopic={onToggleTopic}
+          onToggleSubject={onToggleSubject}
           onDeleteSubject={onDeleteSubject}
           onDeleteTopic={onDeleteTopic}
           onDeleteSubtopic={onDeleteSubtopic}

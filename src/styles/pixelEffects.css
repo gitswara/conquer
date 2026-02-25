@@ -16,11 +16,11 @@
   font-family: 'Press Start 2P', monospace;
   border: 2px solid var(--border-bright);
   border-radius: 6px;
-  background: #efe7ff;
+  background: var(--button-bg);
   color: var(--text-primary);
   padding: 10px 14px;
   cursor: pointer;
-  box-shadow: 0 2px 0 #3b0764;
+  box-shadow: 0 2px 0 var(--button-shadow);
   text-transform: uppercase;
   font-size: 10px;
   line-height: 1.3;
@@ -29,7 +29,7 @@
 
 .pixel-button:active {
   transform: translateY(1px);
-  box-shadow: 0 1px 0 #3b0764;
+  box-shadow: 0 1px 0 var(--button-shadow);
 }
 
 .pixel-button:disabled {
@@ -112,7 +112,7 @@
   border-radius: 999px;
   padding: 4px 10px;
   font-size: 12px;
-  background: #f5edff;
+  background: var(--inline-chip-bg);
 }
 
 .section-stack {
@@ -128,14 +128,14 @@
 
 .pixel-button.nav-active,
 .pixel-button.tab-active {
-  background: #e9ddff;
+  background: var(--button-active-bg);
   border-color: var(--border-bright);
-  box-shadow: inset 0 0 0 1px rgba(91, 33, 182, 0.3), 0 2px 0 #3b0764;
+  box-shadow: inset 0 0 0 1px var(--focus-ring), 0 2px 0 var(--button-shadow);
 }
 
 .table-action {
-  border: 1px solid #c7afea;
-  background: #f7f2ff;
+  border: 1px solid var(--toolbar-border);
+  background: var(--bg-soft-alt);
   color: var(--text-primary);
   border-radius: 5px;
   padding: 4px 8px;
@@ -146,7 +146,7 @@
 
 .table-action:hover {
   border-color: var(--border-bright);
-  background: #efe5ff;
+  background: var(--button-bg);
 }
 
 .table-action.danger {
@@ -155,24 +155,24 @@
 }
 
 .planner-table {
-  border: 1px solid #d9c8f3;
+  border: 1px solid var(--table-border);
   border-radius: 8px;
   overflow: hidden;
 }
 
 .planner-table thead tr {
-  background: #f5edff;
+  background: var(--table-head-bg);
 }
 
 .planner-table tfoot tr {
-  background: #efe5ff;
+  background: var(--table-head-bg);
 }
 
 .toolbar-panel {
-  border: 1px solid #d9c8f3;
+  border: 1px solid var(--toolbar-border);
   border-radius: 8px;
   padding: 12px;
-  background: #faf7ff;
+  background: var(--toolbar-bg);
 }
 
 .study-timer-card {
@@ -183,4 +183,169 @@
 
 .study-timer-card.expanded {
   width: min(920px, 100%);
+}
+
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.theme-option {
+  border: 1px solid var(--toolbar-border);
+  background: var(--bg-card);
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--text-primary);
+  text-align: left;
+  padding: 8px;
+  font-family: 'Space Mono', 'Courier New', monospace;
+  font-size: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.theme-option.active {
+  border-color: var(--border-bright);
+  box-shadow: 0 0 0 2px var(--focus-ring);
+}
+
+.theme-swatch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-radius: 6px;
+  overflow: hidden;
+  height: 24px;
+  border: 1px solid var(--toolbar-border);
+}
+
+.theme-swatch span {
+  display: block;
+}
+
+.stats-strip {
+  border: 1px solid var(--table-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--table-head-bg);
+  font-size: 12px;
+}
+
+.planner-table th,
+.planner-table td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.syllabus-number {
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.syllabus-name-cell {
+  white-space: normal;
+}
+
+.syllabus-name-cell.level-subject {
+  padding-left: 6px;
+}
+
+.syllabus-name-cell.level-topic {
+  padding-left: 24px;
+}
+
+.syllabus-name-cell.level-subtopic {
+  padding-left: 42px;
+}
+
+.syllabus-row-toggle {
+  cursor: pointer;
+}
+
+.subject-row .syllabus-name-cell {
+  font-weight: 700;
+}
+
+.topic-row .syllabus-name-cell {
+  font-weight: 600;
+}
+
+.subject-row:hover {
+  filter: brightness(0.975);
+}
+
+.topic-row:hover {
+  filter: brightness(0.985);
+}
+
+.syllabus-name-button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  text-align: left;
+  cursor: text;
+  font: inherit;
+}
+
+.syllabus-name-input.invalid {
+  border-color: var(--danger);
+  animation: pixel-shake 180ms linear 1;
+}
+
+@keyframes pixel-shake {
+  0%,
+  100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
+.icon-action {
+  border: 1px solid var(--toolbar-border);
+  background: var(--bg-soft-alt);
+  border-radius: 5px;
+  width: 30px;
+  height: 28px;
+  cursor: pointer;
+  display: inline-grid;
+  place-items: center;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.icon-action.plus {
+  color: var(--accent-primary);
+}
+
+.icon-action.rename {
+  color: var(--text-dim);
+}
+
+.icon-action.trash {
+  color: #f87171;
+}
+
+.icon-action:hover {
+  border-color: var(--border-bright);
+}
+
+.syllabus-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .syllabus-actions.hover-desktop {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 120ms ease-out;
+  }
+
+  tr:hover .syllabus-actions.hover-desktop,
+  tr:focus-within .syllabus-actions.hover-desktop {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }

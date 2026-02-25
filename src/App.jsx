@@ -5,6 +5,7 @@ import BottomNav from './components/layout/BottomNav';
 import HomeDashboard from './components/home/HomeDashboard';
 import StudyTab from './components/study/StudyTab';
 import PlannerTab from './components/planner/PlannerTab';
+import SettingsPanel from './components/settings/SettingsPanel';
 import LandingPage from './components/auth/LandingPage';
 import PlanHub from './components/auth/PlanHub';
 import PixelButton from './components/ui/PixelButton';
@@ -17,6 +18,7 @@ const ACTIVE_PLAN_STORAGE_KEY = 'examquest_active_plan';
 function emptyPlanData() {
   return {
     config: null,
+    subjects: [],
     topics: [],
     sessions: [],
     streak: {
@@ -76,6 +78,7 @@ export default function App() {
   const isDesktop = useIsDesktop();
 
   const config = useAppStore((state) => state.config);
+  const subjects = useAppStore((state) => state.subjects);
   const topics = useAppStore((state) => state.topics);
   const sessions = useAppStore((state) => state.sessions);
   const streak = useAppStore((state) => state.streak);
@@ -92,8 +95,12 @@ export default function App() {
   const addSubject = useAppStore((state) => state.addSubject);
   const addTopic = useAppStore((state) => state.addTopic);
   const addSubtopic = useAppStore((state) => state.addSubtopic);
+  const renameSubject = useAppStore((state) => state.renameSubject);
+  const updateTopic = useAppStore((state) => state.updateTopic);
   const updateSubtopic = useAppStore((state) => state.updateSubtopic);
   const toggleSubtopicCompleted = useAppStore((state) => state.toggleSubtopicCompleted);
+  const toggleTopicCompleted = useAppStore((state) => state.toggleTopicCompleted);
+  const toggleSubjectCompleted = useAppStore((state) => state.toggleSubjectCompleted);
   const deleteTopic = useAppStore((state) => state.deleteTopic);
   const deleteSubject = useAppStore((state) => state.deleteSubject);
   const deleteSubtopic = useAppStore((state) => state.deleteSubtopic);
@@ -124,8 +131,8 @@ export default function App() {
   );
 
   const workspaceData = useMemo(
-    () => ({ config, topics, sessions, streak, activeSession, ui }),
-    [config, topics, sessions, streak, activeSession, ui]
+    () => ({ config, subjects, topics, sessions, streak, activeSession, ui }),
+    [config, subjects, topics, sessions, streak, activeSession, ui]
   );
 
   const workspaceSerialized = useMemo(() => JSON.stringify(workspaceData), [workspaceData]);
@@ -135,10 +142,10 @@ export default function App() {
   }, [hydrateForToday]);
 
   useEffect(() => {
-    if (!config) {
+    if (!config && ui.tab !== 'SETTINGS') {
       setTab('PLANNER');
     }
-  }, [config, setTab]);
+  }, [config, setTab, ui.tab]);
 
   useEffect(() => {
     setQuoteSeed((prev) => prev + 1);
@@ -403,6 +410,7 @@ export default function App() {
           {ui.tab === 'PLANNER' ? (
             <PlannerTab
               config={config}
+              subjects={subjects}
               topics={topics}
               plannerSubtab={ui.plannerSubtab}
               onSetSubtab={setPlannerSubtab}
@@ -411,14 +419,20 @@ export default function App() {
               onAddSubject={addSubject}
               onAddTopic={addTopic}
               onAddSubtopic={addSubtopic}
+              onRenameSubject={renameSubject}
+              onUpdateTopic={updateTopic}
               onUpdateSubtopic={updateSubtopic}
               onToggleSubtopic={toggleSubtopicCompleted}
+              onToggleTopic={toggleTopicCompleted}
+              onToggleSubject={toggleSubjectCompleted}
               onDeleteSubject={deleteSubject}
               onDeleteTopic={deleteTopic}
               onDeleteSubtopic={deleteSubtopic}
               onFinishSetup={() => setTab('HOME')}
             />
           ) : null}
+
+          {ui.tab === 'SETTINGS' ? <SettingsPanel /> : null}
         </main>
       </div>
 
