@@ -6,11 +6,15 @@ import HomeDashboard from './components/home/HomeDashboard';
 import StudyTab from './components/study/StudyTab';
 import PlannerTab from './components/planner/PlannerTab';
 import SettingsPanel from './components/settings/SettingsPanel';
+import TrainingCompleteBanner from './components/home/TrainingCompleteBanner';
+import QuestCompletedModal from './components/home/QuestCompletedModal';
 import LandingPage from './components/auth/LandingPage';
 import PlanHub from './components/auth/PlanHub';
 import PixelButton from './components/ui/PixelButton';
 import { useAppStore } from './store/useAppStore';
 import { uid } from './utils/id';
+import { todayISODate } from './utils/dateUtils';
+import { getQuestLootStats, getSubtopicCompletion, isQuestCompletedForData } from './utils/questUtils';
 
 const AUTH_STORAGE_KEY = 'examquest_accounts';
 const ACTIVE_PLAN_STORAGE_KEY = 'examquest_active_plan';
@@ -21,6 +25,7 @@ function emptyPlanData() {
     subjects: [],
     topics: [],
     sessions: [],
+    questCompletedSeen: false,
     streak: {
       currentStreak: 0,
       longestStreak: 0,
@@ -81,6 +86,7 @@ export default function App() {
   const subjects = useAppStore((state) => state.subjects);
   const topics = useAppStore((state) => state.topics);
   const sessions = useAppStore((state) => state.sessions);
+  const questCompletedSeen = useAppStore((state) => state.questCompletedSeen);
   const streak = useAppStore((state) => state.streak);
   const activeSession = useAppStore((state) => state.activeSession);
   const ui = useAppStore((state) => state.ui);
@@ -88,6 +94,7 @@ export default function App() {
   const hydrateForToday = useAppStore((state) => state.hydrateForToday);
   const setTab = useAppStore((state) => state.setTab);
   const setPlannerSubtab = useAppStore((state) => state.setPlannerSubtab);
+  const setQuestCompletedSeen = useAppStore((state) => state.setQuestCompletedSeen);
 
   const setConfig = useAppStore((state) => state.setConfig);
   const updateConfig = useAppStore((state) => state.updateConfig);
@@ -116,9 +123,14 @@ export default function App() {
   const [quoteSeed, setQuoteSeed] = useState(0);
   const [authStore, setAuthStore] = useState(() => readAuthStore());
   const [activePlanId, setActivePlanId] = useState(() => window.localStorage.getItem(ACTIVE_PLAN_STORAGE_KEY) || '');
+  const [showTrainingCompleteBanner, setShowTrainingCompleteBanner] = useState(false);
+  const [showQuestCompletedModal, setShowQuestCompletedModal] = useState(false);
+  const [questModalDefaultOpened, setQuestModalDefaultOpened] = useState(false);
 
   const pausePlanSyncRef = useRef(false);
   const hydratedPlanKeyRef = useRef('');
+  const previousSubtopicCompletionRef = useRef({ planId: '', completed: 0, total: 0, allComplete: false });
+  const lastQuestDailyCheckRef = useRef('');
 
   const currentUser = useMemo(
     () => authStore.users.find((user) => user.id === authStore.currentUserId) || null,
@@ -131,11 +143,27 @@ export default function App() {
   );
 
   const workspaceData = useMemo(
-    () => ({ config, subjects, topics, sessions, streak, activeSession, ui }),
-    [config, subjects, topics, sessions, streak, activeSession, ui]
+    () => ({ config, subjects, topics, sessions, questCompletedSeen, streak, activeSession, ui }),
+    [config, subjects, topics, sessions, questCompletedSeen, streak, activeSession, ui]
   );
 
   const workspaceSerialized = useMemo(() => JSON.stringify(workspaceData), [workspaceData]);
+
+  const subtopicCompletion = useMemo(() => getSubtopicCompletion(topics), [topics]);
+  const questCompleted = useMemo(
+    () => isQuestCompletedForData({ config, topics }),
+    [config, topics]
+  );
+  const lootStats = useMemo(
+    () =>
+      getQuestLootStats({
+        config,
+        topics,
+        sessions,
+        createdAt: activePlan?.createdAt
+      }),
+    [config, topics, sessions, activePlan?.createdAt]
+  );
 
   useEffect(() => {
     hydrateForToday();
@@ -175,6 +203,11 @@ export default function App() {
   useEffect(() => {
     if (!currentUser || !activePlanId) {
       hydratedPlanKeyRef.current = '';
+      setShowTrainingCompleteBanner(false);
+      setShowQuestCompletedModal(false);
+      setQuestModalDefaultOpened(false);
+      previousSubtopicCompletionRef.current = { planId: '', completed: 0, total: 0, allComplete: false };
+      lastQuestDailyCheckRef.current = '';
       return;
     }
 
@@ -227,6 +260,79 @@ export default function App() {
       };
     });
   }, [currentUser, activePlanId, workspaceSerialized, workspaceData]);
+
+  useEffect(() => {
+    if (!activePlanId) return;
+
+    const previous = previousSubtopicCompletionRef.current;
+    const current = {
+      planId: activePlanId,
+      completed: subtopicCompletion.completed,
+      total: subtopicCompletion.total,
+      allComplete: subtopicCompletion.allComplete
+    };
+
+    if (previous.planId !== activePlanId) {
+      previousSubtopicCompletionRef.current = current;
+      return;
+    }
+
+    const becameFullyComplete = current.total > 0
+      && current.allComplete
+      && !previous.allComplete
+      && current.completed > previous.completed;
+    if (becameFullyComplete) {
+      setShowTrainingCompleteBanner(true);
+    }
+
+    previousSubtopicCompletionRef.current = current;
+  }, [activePlanId, subtopicCompletion]);
+
+  useEffect(() => {
+    if (!activePlanId) return;
+    if (questCompletedSeen && subtopicCompletion.completed === 0) {
+      setQuestCompletedSeen(false);
+    }
+  }, [activePlanId, questCompletedSeen, subtopicCompletion.completed, setQuestCompletedSeen]);
+
+  useEffect(() => {
+    if (!activePlanId) return;
+    if (questCompleted && !questCompletedSeen) {
+      setQuestModalDefaultOpened(false);
+      setShowQuestCompletedModal(true);
+    }
+  }, [activePlanId, questCompleted, questCompletedSeen]);
+
+  useEffect(() => {
+    if (!activePlanId) return undefined;
+
+    function maybeAutoCheckQuest() {
+      if (document.visibilityState === 'hidden') return;
+      const today = todayISODate();
+      if (lastQuestDailyCheckRef.current === today) return;
+      lastQuestDailyCheckRef.current = today;
+
+      const questCompletedToday = isQuestCompletedForData({ config, topics }, today);
+      if (questCompletedToday && !questCompletedSeen) {
+        setQuestModalDefaultOpened(false);
+        setShowQuestCompletedModal(true);
+      }
+    }
+
+    maybeAutoCheckQuest();
+    window.addEventListener('focus', maybeAutoCheckQuest);
+    document.addEventListener('visibilitychange', maybeAutoCheckQuest);
+
+    return () => {
+      window.removeEventListener('focus', maybeAutoCheckQuest);
+      document.removeEventListener('visibilitychange', maybeAutoCheckQuest);
+    };
+  }, [activePlanId, config, topics, questCompletedSeen]);
+
+  useEffect(() => {
+    if (questCompleted) return;
+    setShowQuestCompletedModal(false);
+  }, [questCompleted]);
 
   function handleLogin({ email, password }) {
     const found = authStore.users.find((user) => user.email === email);
@@ -360,6 +466,33 @@ export default function App() {
     }));
   }
 
+  function handleDeletePlan(planId) {
+    if (!currentUser) return;
+    const plan = currentUser.plans.find((entry) => entry.id === planId);
+    if (!plan) return;
+    if (!window.confirm(`DELETE PLAN \"${plan.name}\"?`)) return;
+    if (!window.confirm('CONFIRM AGAIN: THIS CANNOT BE UNDONE.')) return;
+
+    setAuthStore((prev) => ({
+      ...prev,
+      users: prev.users.map((user) =>
+        user.id !== prev.currentUserId
+          ? user
+          : {
+              ...user,
+              plans: user.plans.filter((entry) => entry.id !== planId)
+            }
+      )
+    }));
+
+    if (activePlanId === planId) {
+      setActivePlanId('');
+      window.localStorage.removeItem(ACTIVE_PLAN_STORAGE_KEY);
+      hydratedPlanKeyRef.current = '';
+      resetAllData();
+    }
+  }
+
   if (!currentUser) {
     return <LandingPage onLogin={handleLogin} onSignup={handleSignup} />;
   }
@@ -372,6 +505,7 @@ export default function App() {
         onOpenPlan={handleOpenPlan}
         onExportPlan={handleExportPlan}
         onResetPlan={handleResetPlan}
+        onDeletePlan={handleDeletePlan}
         onLogout={handleLogout}
       />
     );
@@ -385,6 +519,7 @@ export default function App() {
         <main>
           <Header
             examName={config?.examName || activePlan.name}
+            conquered={questCompleted}
             extraActions={
               <>
                 <PixelButton onClick={handleBackToPlans}>PLANS</PixelButton>
@@ -400,6 +535,11 @@ export default function App() {
               topics={topics}
               sessions={sessions}
               quoteSeed={quoteSeed}
+              showViewLootButton={questCompleted}
+              onViewLoot={() => {
+                setQuestModalDefaultOpened(questCompletedSeen);
+                setShowQuestCompletedModal(true);
+              }}
             />
           ) : null}
 
@@ -445,6 +585,22 @@ export default function App() {
       </div>
 
       {!isDesktop ? <BottomNav activeTab={ui.tab} onSelect={setTab} /> : null}
+
+      <TrainingCompleteBanner
+        open={showTrainingCompleteBanner}
+        onDone={() => setShowTrainingCompleteBanner(false)}
+      />
+      <QuestCompletedModal
+        open={showQuestCompletedModal}
+        defaultOpened={questModalDefaultOpened}
+        lootStats={lootStats}
+        onChestOpen={() => {
+          if (!questCompletedSeen) {
+            setQuestCompletedSeen(true);
+          }
+        }}
+        onClose={() => setShowQuestCompletedModal(false)}
+      />
     </div>
   );
 }

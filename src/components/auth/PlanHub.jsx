@@ -1,6 +1,7 @@
 import PixelCard from '../ui/PixelCard';
 import PixelButton from '../ui/PixelButton';
 import { useState } from 'react';
+import { isQuestCompletedForData } from '../../utils/questUtils';
 
 function prettyDate(value) {
   if (!value) return '—';
@@ -9,7 +10,15 @@ function prettyDate(value) {
   return date.toLocaleDateString();
 }
 
-export default function PlanHub({ user, onCreatePlan, onOpenPlan, onExportPlan, onResetPlan, onLogout }) {
+export default function PlanHub({
+  user,
+  onCreatePlan,
+  onOpenPlan,
+  onExportPlan,
+  onResetPlan,
+  onDeletePlan,
+  onLogout
+}) {
   const [planName, setPlanName] = useState('');
   const [error, setError] = useState('');
 
@@ -59,25 +68,37 @@ export default function PlanHub({ user, onCreatePlan, onOpenPlan, onExportPlan, 
             user.plans
               .slice()
               .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
-              .map((plan) => (
-                <PixelCard
-                  key={plan.id}
-                  title={plan.name}
-                  right={<span className="muted" style={{ fontSize: 12 }}>UPDATED {prettyDate(plan.updatedAt)}</span>}
-                >
-                  <div className="row-wrap">
-                    <PixelButton variant="success" onClick={() => onOpenPlan(plan.id)}>
-                      OPEN PLAN
-                    </PixelButton>
-                    <PixelButton onClick={() => onExportPlan(plan.id)}>
-                      EXPORT
-                    </PixelButton>
-                    <PixelButton variant="danger" onClick={() => onResetPlan(plan.id)}>
-                      RESET
-                    </PixelButton>
-                  </div>
-                </PixelCard>
-              ))
+              .map((plan) => {
+                const conquered = isQuestCompletedForData(plan.data || {});
+                return (
+                  <PixelCard
+                    key={plan.id}
+                    className={conquered ? 'plan-card-conquered' : ''}
+                    title={plan.name}
+                    right={(
+                      <div className="row-wrap">
+                        {conquered ? <span className="conquered-badge">CONQUERED ✓</span> : null}
+                        <span className="muted" style={{ fontSize: 12 }}>UPDATED {prettyDate(plan.updatedAt)}</span>
+                      </div>
+                    )}
+                  >
+                    <div className="row-wrap">
+                      <PixelButton variant="success" onClick={() => onOpenPlan(plan.id)}>
+                        OPEN PLAN
+                      </PixelButton>
+                      <PixelButton onClick={() => onExportPlan(plan.id)}>
+                        EXPORT
+                      </PixelButton>
+                      <PixelButton variant="danger" onClick={() => onResetPlan(plan.id)}>
+                        RESET
+                      </PixelButton>
+                      <PixelButton variant="danger" onClick={() => onDeletePlan(plan.id)}>
+                        DELETE
+                      </PixelButton>
+                    </div>
+                  </PixelCard>
+                );
+              })
           ) : (
             <PixelCard title="NO PLANS YET">
               <p style={{ margin: 0 }}>Create your first study plan to begin your quest.</p>

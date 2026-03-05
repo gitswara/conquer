@@ -16,6 +16,7 @@ const initialState = {
   subjects: [],
   topics: [],
   sessions: [],
+  questCompletedSeen: false,
   streak: initialStreak,
   activeSession: null,
   ui: {
@@ -63,6 +64,7 @@ export const useAppStore = create(
 
       setTab: (tab) => set((state) => ({ ui: { ...state.ui, tab } })),
       setPlannerSubtab: (plannerSubtab) => set((state) => ({ ui: { ...state.ui, plannerSubtab } })),
+      setQuestCompletedSeen: (questCompletedSeen) => set({ questCompletedSeen: Boolean(questCompletedSeen) }),
 
       setConfig: (config) =>
         set({

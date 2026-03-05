@@ -4,8 +4,17 @@ import DaysRemainingWidget from './DaysRemainingWidget';
 import StreakWidget from './StreakWidget';
 import WeeklyGraph from './WeeklyGraph';
 import MotivationalQuote from './MotivationalQuote';
+import PixelButton from '../ui/PixelButton';
 
-export default function HomeDashboard({ config, subjects, topics, sessions, quoteSeed }) {
+export default function HomeDashboard({
+  config,
+  subjects,
+  topics,
+  sessions,
+  quoteSeed,
+  showViewLootButton = false,
+  onViewLoot
+}) {
   const gridStyle = useMemo(
     () => ({
       display: 'grid',
@@ -18,6 +27,11 @@ export default function HomeDashboard({ config, subjects, topics, sessions, quot
   return (
     <div className="section-stack">
       <SyllabusProgressBar subjects={subjects} topics={topics} />
+      {showViewLootButton ? (
+        <div className="row-wrap" style={{ justifyContent: 'flex-end' }}>
+          <PixelButton onClick={onViewLoot}>VIEW LOOT</PixelButton>
+        </div>
+      ) : null}
       <div style={gridStyle}>
         <DaysRemainingWidget config={config} />
         <StreakWidget />

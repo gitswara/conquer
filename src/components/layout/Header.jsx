@@ -1,5 +1,7 @@
-export default function Header({ examName, extraActions }) {
-  const title = examName ? `⚔️ CONQUER ${examName.toUpperCase()}` : '⚔️ CONQUER';
+export default function Header({ examName, extraActions, conquered = false }) {
+  const title = examName
+    ? `⚔️ ${conquered ? 'CONQUERED' : 'CONQUER'} ${examName.toUpperCase()}`
+    : '⚔️ CONQUER';
 
   return (
     <header
