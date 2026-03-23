@@ -289,6 +289,37 @@ th {
   text-align: left;
 }
 
+.quest-inline-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.quest-link-button {
+  border: 0;
+  background: transparent;
+  color: var(--accent-primary);
+  cursor: pointer;
+  font-family: 'Space Mono', 'Courier New', monospace;
+  font-size: 13px;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.quest-link-button:hover {
+  color: var(--border-bright);
+}
+
+.quest-link-button:focus-visible {
+  outline: 2px solid var(--border-bright);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+.quest-auth-message {
+  font-size: 13px;
+}
+
 .quest-bottom-border {
   position: absolute;
   left: 0;

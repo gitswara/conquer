@@ -2,14 +2,22 @@ import { useState } from 'react';
 import PixelCard from '../ui/PixelCard';
 import PixelButton from '../ui/PixelButton';
 
-export default function LandingPage({ onLogin, onSignup }) {
+export default function LandingPage({ onLogin, onSignup, onForgotPassword }) {
   const [mode, setMode] = useState('LOGIN');
   const [form, setForm] = useState({ name: '', email: '', password: '' });
   const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
+
+  function switchMode(nextMode) {
+    setMode(nextMode);
+    setError('');
+    setInfo('');
+  }
 
   async function submit(event) {
     event.preventDefault();
     setError('');
+    setInfo('');
 
     const email = form.email.trim().toLowerCase();
     const password = form.password;
@@ -28,6 +36,25 @@ export default function LandingPage({ onLogin, onSignup }) {
     if (!result?.ok) {
       setError(result?.message || 'Unable to continue.');
     }
+  }
+
+  async function requestPasswordReset() {
+    const email = form.email.trim().toLowerCase();
+    setError('');
+    setInfo('');
+
+    if (!email) {
+      setError('Enter your email first.');
+      return;
+    }
+
+    const result = await onForgotPassword({ email });
+    if (!result?.ok) {
+      setError(result?.message || 'Unable to send reset link.');
+      return;
+    }
+
+    setInfo(result?.message || 'If an account exists, a reset email has been sent.');
   }
 
   return (
@@ -64,10 +91,10 @@ export default function LandingPage({ onLogin, onSignup }) {
         </div>
 
         <div className="row-wrap quest-auth-switch" style={{ justifyContent: 'center' }}>
-          <PixelButton className={mode === 'LOGIN' ? 'tab-active' : ''} onClick={() => setMode('LOGIN')}>
+          <PixelButton className={mode === 'LOGIN' ? 'tab-active' : ''} onClick={() => switchMode('LOGIN')}>
             LOGIN
           </PixelButton>
-          <PixelButton className={mode === 'SIGNUP' ? 'tab-active' : ''} onClick={() => setMode('SIGNUP')}>
+          <PixelButton className={mode === 'SIGNUP' ? 'tab-active' : ''} onClick={() => switchMode('SIGNUP')}>
             SIGN UP
           </PixelButton>
         </div>
@@ -108,7 +135,16 @@ export default function LandingPage({ onLogin, onSignup }) {
               />
             </div>
 
-            {error ? <div style={{ color: 'var(--danger)', fontSize: 13 }}>{error}</div> : null}
+            {mode === 'LOGIN' ? (
+              <div className="quest-inline-actions">
+                <button type="button" className="quest-link-button" onClick={requestPasswordReset}>
+                  Forgot password?
+                </button>
+              </div>
+            ) : null}
+
+            {error ? <div className="quest-auth-message" style={{ color: 'var(--danger)' }}>{error}</div> : null}
+            {info ? <div className="quest-auth-message" style={{ color: 'var(--success)' }}>{info}</div> : null}
 
             <PixelButton type="submit" variant="success">
               {mode === 'LOGIN' ? 'ENTER QUEST' : 'CREATE ACCOUNT'}

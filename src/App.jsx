@@ -15,6 +15,15 @@ import { useAppStore } from './store/useAppStore';
 import { uid } from './utils/id';
 import { todayISODate } from './utils/dateUtils';
 import { getQuestLootStats, getSubtopicCompletion, isQuestCompletedForData } from './utils/questUtils';
+import {
+  createUserWithEmailAndPassword,
+  onAuthStateChanged,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
+  signOut,
+  updateProfile
+} from 'firebase/auth';
+import { auth } from './lib/firebase';
 
 const AUTH_STORAGE_KEY = 'examquest_accounts';
 const ACTIVE_PLAN_STORAGE_KEY = 'examquest_active_plan';
@@ -48,12 +57,96 @@ function readAuthStore() {
     }
 
     const parsed = JSON.parse(raw);
+    const users = Array.isArray(parsed?.users)
+      ? parsed.users
+        .filter((user) => typeof user?.id === 'string' && user.id.trim().length > 0)
+        .map((user) => {
+          const email = typeof user.email === 'string' ? user.email.trim().toLowerCase() : '';
+          const fallbackName = email ? email.split('@')[0] : 'Player';
+          return {
+            id: user.id,
+            name: typeof user.name === 'string' && user.name.trim() ? user.name.trim() : fallbackName,
+            email,
+            plans: Array.isArray(user.plans) ? user.plans : []
+          };
+        })
+      : [];
+
     return {
-      users: Array.isArray(parsed?.users) ? parsed.users : [],
-      currentUserId: parsed?.currentUserId || null
+      users,
+      currentUserId: typeof parsed?.currentUserId === 'string' && parsed.currentUserId ? parsed.currentUserId : null
     };
   } catch {
     return { users: [], currentUserId: null };
+  }
+}
+
+function normalizeEmail(value) {
+  return (value || '').trim().toLowerCase();
+}
+
+function defaultNameFromEmail(email) {
+  if (!email) return 'Player';
+  return email.split('@')[0] || 'Player';
+}
+
+function upsertUserFromAuth(users, { uid, email, name }) {
+  if (!uid) return Array.isArray(users) ? users : [];
+
+  const nextUsers = Array.isArray(users) ? [...users] : [];
+  const normalizedEmail = normalizeEmail(email);
+  const normalizedName = (name || '').trim() || defaultNameFromEmail(normalizedEmail);
+
+  const uidIndex = nextUsers.findIndex((user) => user.id === uid);
+  if (uidIndex >= 0) {
+    const current = nextUsers[uidIndex];
+    nextUsers[uidIndex] = {
+      ...current,
+      email: normalizedEmail || current.email || '',
+      name: current.name || normalizedName,
+      plans: Array.isArray(current.plans) ? current.plans : []
+    };
+    return nextUsers;
+  }
+
+  const emailIndex = normalizedEmail ? nextUsers.findIndex((user) => user.email === normalizedEmail) : -1;
+  if (emailIndex >= 0) {
+    const current = nextUsers[emailIndex];
+    nextUsers[emailIndex] = {
+      ...current,
+      id: uid,
+      email: normalizedEmail,
+      name: current.name || normalizedName,
+      plans: Array.isArray(current.plans) ? current.plans : []
+    };
+    return nextUsers;
+  }
+
+  nextUsers.push({
+    id: uid,
+    name: normalizedName,
+    email: normalizedEmail,
+    plans: []
+  });
+  return nextUsers;
+}
+
+function mapAuthError(error, mode) {
+  switch (error?.code) {
+    case 'auth/invalid-email':
+      return 'Enter a valid email address.';
+    case 'auth/invalid-credential':
+    case 'auth/user-not-found':
+    case 'auth/wrong-password':
+      return mode === 'login' ? 'Invalid email or password.' : 'Unable to continue with this account.';
+    case 'auth/email-already-in-use':
+      return 'An account with this email already exists.';
+    case 'auth/weak-password':
+      return 'Password must be at least 6 characters.';
+    case 'auth/too-many-requests':
+      return 'Too many attempts. Please wait a bit and try again.';
+    default:
+      return 'Unable to continue right now. Please try again.';
   }
 }
 
@@ -122,6 +215,7 @@ export default function App() {
 
   const [quoteSeed, setQuoteSeed] = useState(0);
   const [authStore, setAuthStore] = useState(() => readAuthStore());
+  const [authReady, setAuthReady] = useState(false);
   const [activePlanId, setActivePlanId] = useState(() => window.localStorage.getItem(ACTIVE_PLAN_STORAGE_KEY) || '');
   const [showTrainingCompleteBanner, setShowTrainingCompleteBanner] = useState(false);
   const [showQuestCompletedModal, setShowQuestCompletedModal] = useState(false);
@@ -182,6 +276,35 @@ export default function App() {
   useEffect(() => {
     window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authStore));
   }, [authStore]);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (!firebaseUser) {
+        setAuthStore((prev) => {
+          if (!prev.currentUserId) return prev;
+          return { ...prev, currentUserId: null };
+        });
+        setActivePlanId('');
+        window.localStorage.removeItem(ACTIVE_PLAN_STORAGE_KEY);
+        resetAllData();
+        setAuthReady(true);
+        return;
+      }
+
+      const email = normalizeEmail(firebaseUser.email);
+      const name = firebaseUser.displayName || '';
+      setAuthStore((prev) => ({
+        ...prev,
+        users: upsertUserFromAuth(prev.users, { uid: firebaseUser.uid, email, name }),
+        currentUserId: firebaseUser.uid
+      }));
+      setAuthReady(true);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [resetAllData]);
 
   useEffect(() => {
     if (!currentUser) {
@@ -334,47 +457,80 @@ export default function App() {
     setShowQuestCompletedModal(false);
   }, [questCompleted]);
 
-  function handleLogin({ email, password }) {
-    const found = authStore.users.find((user) => user.email === email);
-    if (!found || found.password !== password) {
-      return { ok: false, message: 'Invalid email or password.' };
+  async function handleLogin({ email, password }) {
+    const normalizedEmail = normalizeEmail(email);
+    try {
+      const credential = await signInWithEmailAndPassword(auth, normalizedEmail, password);
+      const firebaseUser = credential.user;
+      setAuthStore((prev) => ({
+        ...prev,
+        users: upsertUserFromAuth(prev.users, {
+          uid: firebaseUser.uid,
+          email: normalizeEmail(firebaseUser.email || normalizedEmail),
+          name: firebaseUser.displayName || ''
+        }),
+        currentUserId: firebaseUser.uid
+      }));
+      setActivePlanId('');
+      window.localStorage.removeItem(ACTIVE_PLAN_STORAGE_KEY);
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, message: mapAuthError(error, 'login') };
     }
-
-    setAuthStore((prev) => ({ ...prev, currentUserId: found.id }));
-    setActivePlanId('');
-    window.localStorage.removeItem(ACTIVE_PLAN_STORAGE_KEY);
-    return { ok: true };
   }
 
-  function handleSignup({ name, email, password }) {
-    if (authStore.users.some((user) => user.email === email)) {
-      return { ok: false, message: 'An account with this email already exists.' };
+  async function handleSignup({ name, email, password }) {
+    const normalizedEmail = normalizeEmail(email);
+    const trimmedName = (name || '').trim();
+
+    try {
+      const credential = await createUserWithEmailAndPassword(auth, normalizedEmail, password);
+      if (trimmedName) {
+        await updateProfile(credential.user, { displayName: trimmedName });
+      }
+
+      const firebaseUser = credential.user;
+      setAuthStore((prev) => ({
+        ...prev,
+        users: upsertUserFromAuth(prev.users, {
+          uid: firebaseUser.uid,
+          email: normalizeEmail(firebaseUser.email || normalizedEmail),
+          name: trimmedName || firebaseUser.displayName || ''
+        }),
+        currentUserId: firebaseUser.uid
+      }));
+
+      setActivePlanId('');
+      window.localStorage.removeItem(ACTIVE_PLAN_STORAGE_KEY);
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, message: mapAuthError(error, 'signup') };
+    }
+  }
+
+  async function handleForgotPassword({ email }) {
+    const normalizedEmail = normalizeEmail(email);
+    if (!normalizedEmail) {
+      return { ok: false, message: 'Enter your email first.' };
     }
 
-    const user = {
-      id: uid('user'),
-      name,
-      email,
-      password,
-      plans: []
-    };
-
-    setAuthStore((prev) => ({
-      ...prev,
-      users: [...prev.users, user],
-      currentUserId: user.id
-    }));
-
-    setActivePlanId('');
-    window.localStorage.removeItem(ACTIVE_PLAN_STORAGE_KEY);
-    return { ok: true };
+    try {
+      const appBaseUrl = `${window.location.origin}${import.meta.env.BASE_URL}`;
+      await sendPasswordResetEmail(auth, normalizedEmail, {
+        url: appBaseUrl,
+        handleCodeInApp: false
+      });
+      return { ok: true, message: 'If an account exists, a reset email has been sent.' };
+    } catch (error) {
+      if (error?.code === 'auth/user-not-found') {
+        return { ok: true, message: 'If an account exists, a reset email has been sent.' };
+      }
+      return { ok: false, message: mapAuthError(error, 'forgot') };
+    }
   }
 
   function handleLogout() {
-    setAuthStore((prev) => ({ ...prev, currentUserId: null }));
-    setActivePlanId('');
-    window.localStorage.removeItem(ACTIVE_PLAN_STORAGE_KEY);
-    resetAllData();
+    signOut(auth).catch(() => {});
   }
 
   function handleCreatePlan(name) {
@@ -493,8 +649,18 @@ export default function App() {
     }
   }
 
+  if (!authReady) {
+    return <div className="landing-root" />;
+  }
+
   if (!currentUser) {
-    return <LandingPage onLogin={handleLogin} onSignup={handleSignup} />;
+    return (
+      <LandingPage
+        onLogin={handleLogin}
+        onSignup={handleSignup}
+        onForgotPassword={handleForgotPassword}
+      />
+    );
   }
 
   if (!activePlan) {
