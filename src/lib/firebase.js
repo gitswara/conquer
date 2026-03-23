@@ -2,14 +2,28 @@ import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 
 const firebaseConfig = {
-  apiKey: 'AIzaSyCVQNLhfIhTzI5JknYnDMY9odpkFgqj3Fs',
-  authDomain: 'conquer-271e5.firebaseapp.com',
-  projectId: 'conquer-271e5',
-  storageBucket: 'conquer-271e5.firebasestorage.app',
-  messagingSenderId: '148445756493',
-  appId: '1:148445756493:web:14c6214f01edd883ecb004',
-  measurementId: 'G-NSLZ8414S5'
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
+
+const requiredKeys = [
+  'VITE_FIREBASE_API_KEY',
+  'VITE_FIREBASE_AUTH_DOMAIN',
+  'VITE_FIREBASE_PROJECT_ID',
+  'VITE_FIREBASE_STORAGE_BUCKET',
+  'VITE_FIREBASE_MESSAGING_SENDER_ID',
+  'VITE_FIREBASE_APP_ID'
+];
+
+const missing = requiredKeys.filter((key) => !import.meta.env[key]);
+if (missing.length) {
+  throw new Error(`Missing Firebase env vars: ${missing.join(', ')}`);
+}
 
 const app = initializeApp(firebaseConfig);
 
