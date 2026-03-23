@@ -132,21 +132,39 @@ function upsertUserFromAuth(users, { uid, email, name }) {
 }
 
 function mapAuthError(error, mode) {
+  const code = error?.code || '';
   switch (error?.code) {
     case 'auth/invalid-email':
       return 'Enter a valid email address.';
+    case 'auth/missing-email':
+      return 'Enter your email address.';
+    case 'auth/missing-password':
+      return 'Enter your password.';
     case 'auth/invalid-credential':
     case 'auth/user-not-found':
     case 'auth/wrong-password':
       return mode === 'login' ? 'Invalid email or password.' : 'Unable to continue with this account.';
+    case 'auth/user-disabled':
+      return 'This account is disabled in Firebase Auth.';
     case 'auth/email-already-in-use':
       return 'An account with this email already exists.';
     case 'auth/weak-password':
       return 'Password must be at least 6 characters.';
+    case 'auth/operation-not-allowed':
+      return 'Enable Email/Password sign-in in Firebase Console.';
+    case 'auth/configuration-not-found':
+      return 'Firebase Auth is not configured. Check Authentication settings.';
+    case 'auth/invalid-api-key':
+      return 'Firebase API key is invalid for this project.';
+    case 'auth/app-not-authorized':
+    case 'auth/unauthorized-domain':
+      return 'This domain is not authorized in Firebase Auth settings.';
+    case 'auth/network-request-failed':
+      return 'Network error while contacting Firebase. Check connection and ad-blockers.';
     case 'auth/too-many-requests':
       return 'Too many attempts. Please wait a bit and try again.';
     default:
-      return 'Unable to continue right now. Please try again.';
+      return `Unable to continue right now. (${code || 'unknown-auth-error'})`;
   }
 }
 
@@ -475,6 +493,7 @@ export default function App() {
       window.localStorage.removeItem(ACTIVE_PLAN_STORAGE_KEY);
       return { ok: true };
     } catch (error) {
+      console.error('Firebase login failed:', error);
       return { ok: false, message: mapAuthError(error, 'login') };
     }
   }
@@ -504,6 +523,7 @@ export default function App() {
       window.localStorage.removeItem(ACTIVE_PLAN_STORAGE_KEY);
       return { ok: true };
     } catch (error) {
+      console.error('Firebase signup failed:', error);
       return { ok: false, message: mapAuthError(error, 'signup') };
     }
   }
@@ -522,6 +542,7 @@ export default function App() {
       });
       return { ok: true, message: 'If an account exists, a reset email has been sent.' };
     } catch (error) {
+      console.error('Firebase password reset failed:', error);
       if (error?.code === 'auth/user-not-found') {
         return { ok: true, message: 'If an account exists, a reset email has been sent.' };
       }
