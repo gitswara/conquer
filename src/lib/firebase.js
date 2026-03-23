@@ -22,7 +22,9 @@ const requiredKeys = [
 
 const missing = requiredKeys.filter((key) => !import.meta.env[key]);
 if (missing.length) {
-  throw new Error(`Missing Firebase env vars: ${missing.join(', ')}`);
+  // Avoid crashing the entire app shell in production if CI env vars are misconfigured.
+  // Auth calls will still fail with explicit Firebase errors until values are provided.
+  console.error(`Missing Firebase env vars: ${missing.join(', ')}`);
 }
 
 const app = initializeApp(firebaseConfig);
