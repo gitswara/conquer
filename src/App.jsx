@@ -39,12 +39,14 @@ function emptyPlanData() {
       currentStreak: 0,
       longestStreak: 0,
       lastStudyDate: '',
-      streakHistory: []
+      streakHistory: [],
+      streakNotifiedDate: ''
     },
     activeSession: null,
     ui: {
       tab: 'HOME',
-      plannerSubtab: 'SYLLABUS'
+      plannerSubtab: 'SYLLABUS',
+      plannerFocusTopicId: ''
     }
   };
 }
@@ -205,7 +207,9 @@ export default function App() {
   const hydrateForToday = useAppStore((state) => state.hydrateForToday);
   const setTab = useAppStore((state) => state.setTab);
   const setPlannerSubtab = useAppStore((state) => state.setPlannerSubtab);
+  const setPlannerFocusTopic = useAppStore((state) => state.setPlannerFocusTopic);
   const setQuestCompletedSeen = useAppStore((state) => state.setQuestCompletedSeen);
+  const setStreakNotifiedDate = useAppStore((state) => state.setStreakNotifiedDate);
 
   const setConfig = useAppStore((state) => state.setConfig);
   const updateConfig = useAppStore((state) => state.updateConfig);
@@ -222,11 +226,16 @@ export default function App() {
   const deleteTopic = useAppStore((state) => state.deleteTopic);
   const deleteSubject = useAppStore((state) => state.deleteSubject);
   const deleteSubtopic = useAppStore((state) => state.deleteSubtopic);
+  const reorderSubjects = useAppStore((state) => state.reorderSubjects);
+  const reorderTopics = useAppStore((state) => state.reorderTopics);
+  const reorderSubtopics = useAppStore((state) => state.reorderSubtopics);
 
   const startSession = useAppStore((state) => state.startSession);
   const pauseSession = useAppStore((state) => state.pauseSession);
   const resumeSession = useAppStore((state) => state.resumeSession);
   const commitSession = useAppStore((state) => state.commitSession);
+  const deleteSession = useAppStore((state) => state.deleteSession);
+  const updateSessionDuration = useAppStore((state) => state.updateSessionDuration);
 
   const importData = useAppStore((state) => state.importData);
   const resetAllData = useAppStore((state) => state.resetAllData);
@@ -727,6 +736,11 @@ export default function App() {
                 setQuestModalDefaultOpened(questCompletedSeen);
                 setShowQuestCompletedModal(true);
               }}
+              onOpenDueTopic={(topicId) => {
+                setPlannerSubtab('SYLLABUS');
+                setTab('PLANNER');
+                setPlannerFocusTopic(topicId);
+              }}
             />
           ) : null}
 
@@ -739,6 +753,10 @@ export default function App() {
               onPause={pauseSession}
               onResume={resumeSession}
               onCommit={commitSession}
+              onDeleteSession={deleteSession}
+              onUpdateSessionDuration={updateSessionDuration}
+              streak={streak}
+              onStreakSecuredNotified={setStreakNotifiedDate}
             />
           ) : null}
 
@@ -748,7 +766,9 @@ export default function App() {
               subjects={subjects}
               topics={topics}
               plannerSubtab={ui.plannerSubtab}
+              plannerFocusTopicId={ui.plannerFocusTopicId}
               onSetSubtab={setPlannerSubtab}
+              onSetPlannerFocusTopic={setPlannerFocusTopic}
               onSetConfig={setConfig}
               onUpdateConfig={updateConfig}
               onAddSubject={addSubject}
@@ -763,6 +783,9 @@ export default function App() {
               onDeleteSubject={deleteSubject}
               onDeleteTopic={deleteTopic}
               onDeleteSubtopic={deleteSubtopic}
+              onReorderSubjects={reorderSubjects}
+              onReorderTopics={reorderTopics}
+              onReorderSubtopics={reorderSubtopics}
               onFinishSetup={() => setTab('HOME')}
             />
           ) : null}

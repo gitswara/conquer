@@ -14,15 +14,30 @@ export default function TopicRow({
   onToggleComplete,
   onAddSubtopic,
   onDelete,
-  onRename
+  onRename,
+  dragRowAttributes,
+  dragRowListeners,
+  rowRef,
+  rowStyle,
+  rowId,
+  isDragging = false
 }) {
   const [editingSignal, setEditingSignal] = useState(0);
 
   return (
     <tr
+      id={rowId}
+      ref={rowRef}
       className="syllabus-row-toggle topic-row"
-      style={{ borderTop: '1px solid var(--table-border)', background: 'var(--table-topic-bg)' }}
+      style={{
+        borderTop: '1px solid var(--table-border)',
+        background: isDragging ? 'var(--table-subject-hover)' : 'var(--table-topic-bg)',
+        cursor: isDragging ? 'grabbing' : 'grab',
+        ...rowStyle
+      }}
       onClick={onRowToggle}
+      {...dragRowAttributes}
+      {...dragRowListeners}
     >
       <td className="syllabus-number">{number}</td>
       <td>

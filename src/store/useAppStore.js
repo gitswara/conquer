@@ -1,14 +1,15 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { uid } from '../utils/id';
-import { applySessionToStreak, reconcileStreakForNewDay } from '../utils/streakUtils';
+import { recalculateStreakFromSessions, reconcileStreakForNewDay } from '../utils/streakUtils';
 import { todayISODate } from '../utils/dateUtils';
 
 const initialStreak = {
   currentStreak: 0,
   longestStreak: 0,
   lastStudyDate: '',
-  streakHistory: []
+  streakHistory: [],
+  streakNotifiedDate: ''
 };
 
 const initialState = {
@@ -21,7 +22,8 @@ const initialState = {
   activeSession: null,
   ui: {
     tab: 'HOME',
-    plannerSubtab: 'SYLLABUS'
+    plannerSubtab: 'SYLLABUS',
+    plannerFocusTopicId: ''
   }
 };
 
@@ -32,6 +34,32 @@ function nextOrder(items) {
 
 function normalizeSubjectName(subject) {
   return String(subject || '').trim();
+}
+
+function normalizeDueDate(value) {
+  return value ? String(value) : '';
+}
+
+function sortByOrder(items) {
+  return [...items].sort((a, b) => (a.order || 0) - (b.order || 0));
+}
+
+function rebuildSubtopicMinutesFromSessions(topics, sessions) {
+  const minutesBySubtopic = new Map();
+
+  sessions.forEach((session) => {
+    if (!session.topicId || !session.subtopicId) return;
+    const key = `${session.topicId}:${session.subtopicId}`;
+    minutesBySubtopic.set(key, (minutesBySubtopic.get(key) || 0) + (Number(session.durationMinutes) || 0));
+  });
+
+  return topics.map((topic) => ({
+    ...topic,
+    subtopics: topic.subtopics.map((subtopic) => ({
+      ...subtopic,
+      timeSpentMinutes: minutesBySubtopic.get(`${topic.id}:${subtopic.id}`) || 0
+    }))
+  }));
 }
 
 function deriveSubjectsFromTopics(topics) {
@@ -64,7 +92,16 @@ export const useAppStore = create(
 
       setTab: (tab) => set((state) => ({ ui: { ...state.ui, tab } })),
       setPlannerSubtab: (plannerSubtab) => set((state) => ({ ui: { ...state.ui, plannerSubtab } })),
+      setPlannerFocusTopic: (plannerFocusTopicId) =>
+        set((state) => ({ ui: { ...state.ui, plannerFocusTopicId: plannerFocusTopicId || '' } })),
       setQuestCompletedSeen: (questCompletedSeen) => set({ questCompletedSeen: Boolean(questCompletedSeen) }),
+      setStreakNotifiedDate: (dateISO) =>
+        set((state) => ({
+          streak: {
+            ...state.streak,
+            streakNotifiedDate: dateISO || ''
+          }
+        })),
 
       setConfig: (config) =>
         set({
@@ -150,7 +187,8 @@ export const useAppStore = create(
             completed: false,
             completedAt: null,
             order: nextOrder(subjectTopics),
-            color: color || '#c084fc'
+            color: color || '#c084fc',
+            dueDate: ''
           };
           const hasSubject = state.subjects.some((entry) => entry.name === normalizedSubject);
           return {
@@ -195,7 +233,17 @@ export const useAppStore = create(
 
       updateTopic: (topicId, patch) =>
         set((state) => ({
-          topics: state.topics.map((topic) => (topic.id === topicId ? { ...topic, ...patch } : topic))
+          topics: state.topics.map((topic) =>
+            topic.id === topicId
+              ? {
+                  ...topic,
+                  ...patch,
+                  dueDate: Object.prototype.hasOwnProperty.call(patch || {}, 'dueDate')
+                    ? normalizeDueDate(patch.dueDate)
+                    : topic.dueDate || ''
+                }
+              : topic
+          )
         })),
 
       renameSubject: (previousSubject, nextSubject) =>
@@ -338,13 +386,65 @@ export const useAppStore = create(
           })
         })),
 
+      reorderSubjects: (orderedSubjectNames) =>
+        set((state) => {
+          const orderMap = new Map((orderedSubjectNames || []).map((name, index) => [name, index + 1]));
+          return {
+            subjects: state.subjects.map((subject) =>
+              orderMap.has(subject.name)
+                ? {
+                    ...subject,
+                    order: orderMap.get(subject.name)
+                  }
+                : subject
+            )
+          };
+        }),
+
+      reorderTopics: (subject, orderedTopicIds) =>
+        set((state) => {
+          const orderMap = new Map((orderedTopicIds || []).map((id, index) => [id, index + 1]));
+          return {
+            topics: state.topics.map((topic) => {
+              if (topic.subject !== subject || !orderMap.has(topic.id)) return topic;
+              return {
+                ...topic,
+                order: orderMap.get(topic.id)
+              };
+            })
+          };
+        }),
+
+      reorderSubtopics: (topicId, orderedSubtopicIds) =>
+        set((state) => ({
+          topics: state.topics.map((topic) => {
+            if (topic.id !== topicId) return topic;
+            const orderMap = new Map((orderedSubtopicIds || []).map((id, index) => [id, index + 1]));
+            return {
+              ...topic,
+              subtopics: topic.subtopics.map((subtopic) =>
+                orderMap.has(subtopic.id)
+                  ? {
+                      ...subtopic,
+                      order: orderMap.get(subtopic.id)
+                    }
+                  : subtopic
+              )
+            };
+          })
+        })),
+
       startSession: ({ topicId, subtopicId, targetMinutes }) => {
         const now = Date.now();
+        const topic = get().topics.find((entry) => entry.id === topicId);
+        const resolvedSubtopicId = subtopicId
+          || sortByOrder(topic?.subtopics || [])[0]?.id
+          || '';
         set({
           activeSession: {
             id: uid('active'),
             topicId,
-            subtopicId,
+            subtopicId: resolvedSubtopicId,
             startTime: new Date(now).toISOString(),
             lastResumedAt: now,
             elapsedSecondsBeforePause: 0,
@@ -393,11 +493,10 @@ export const useAppStore = create(
         const durationMinutes = Math.max(1, Math.floor(totalSeconds / 60));
 
         const sessionDate = todayISODate();
-        const streakBase = reconcileStreakForNewDay(state.streak);
-        const streakResult = applySessionToStreak(streakBase, durationMinutes, sessionDate);
-
         const completionTimestamp = new Date(now).toISOString();
-        const targetSubtopicId = active.subtopicId || completionSubtopicId || '';
+        const activeTopic = state.topics.find((topic) => topic.id === active.topicId);
+        const fallbackSubtopicId = sortByOrder(activeTopic?.subtopics || [])[0]?.id || '';
+        const targetSubtopicId = active.subtopicId || completionSubtopicId || fallbackSubtopicId || '';
         const completeEntireTopic = Boolean(markCompleted && markWholeTopicCompleted);
 
         const session = {
@@ -408,41 +507,81 @@ export const useAppStore = create(
           endTime: completionTimestamp,
           sessionDate,
           durationMinutes,
-          countedForStreak: streakResult.countedForStreak
+          countedForStreak: false
         };
 
+        const nextSessions = [...state.sessions, session];
+        const streakBase = reconcileStreakForNewDay(state.streak);
+        const recalculated = recalculateStreakFromSessions(streakBase, nextSessions);
+        const recalculatedSession = recalculated.sessions.find((entry) => entry.id === session.id) || session;
+
+        const topicCompletionApplied = state.topics.map((topic) => {
+          if (topic.id !== active.topicId) return topic;
+          return {
+            ...topic,
+            completed: completeEntireTopic && topic.subtopics.length === 0 ? true : topic.completed,
+            completedAt: completeEntireTopic && topic.subtopics.length === 0
+              ? completionTimestamp
+              : topic.completedAt,
+            subtopics: topic.subtopics.map((subtopic) => {
+              const isTargetSubtopic = Boolean(targetSubtopicId) && subtopic.id === targetSubtopicId;
+              const shouldMarkCompleted = completeEntireTopic || (markCompleted && isTargetSubtopic);
+              return {
+                ...subtopic,
+                completed: shouldMarkCompleted ? true : subtopic.completed,
+                completedAt: shouldMarkCompleted ? completionTimestamp : subtopic.completedAt
+              };
+            })
+          };
+        });
+
+        const topicsWithMinutes = rebuildSubtopicMinutesFromSessions(topicCompletionApplied, recalculated.sessions);
+
         set({
-          sessions: [...state.sessions, session],
-          streak: streakResult.streak,
-          topics: state.topics.map((topic) => {
-            if (topic.id !== active.topicId) return topic;
-            return {
-              ...topic,
-              completed: completeEntireTopic && topic.subtopics.length === 0 ? true : topic.completed,
-              completedAt: completeEntireTopic && topic.subtopics.length === 0
-                ? completionTimestamp
-                : topic.completedAt,
-              subtopics: topic.subtopics.map((subtopic) => {
-                const isTargetSubtopic = Boolean(targetSubtopicId) && subtopic.id === targetSubtopicId;
-                const shouldMarkCompleted = completeEntireTopic || (markCompleted && isTargetSubtopic);
-                return {
-                  ...subtopic,
-                  timeSpentMinutes: isTargetSubtopic ? (subtopic.timeSpentMinutes || 0) + durationMinutes : subtopic.timeSpentMinutes,
-                  completed: shouldMarkCompleted ? true : subtopic.completed,
-                  completedAt: shouldMarkCompleted ? completionTimestamp : subtopic.completedAt
-                };
-              })
-            };
-          }),
+          sessions: recalculated.sessions,
+          streak: recalculated.streak,
+          topics: topicsWithMinutes,
           activeSession: null
         });
 
         return {
           durationMinutes,
-          countedForStreak: streakResult.countedForStreak,
-          session
+          countedForStreak: Boolean(recalculatedSession.countedForStreak),
+          session: recalculatedSession
         };
       },
+
+      deleteSession: (sessionId) =>
+        set((state) => {
+          const nextSessions = state.sessions.filter((session) => session.id !== sessionId);
+          const streakBase = reconcileStreakForNewDay(state.streak);
+          const recalculated = recalculateStreakFromSessions(streakBase, nextSessions);
+          return {
+            sessions: recalculated.sessions,
+            streak: recalculated.streak,
+            topics: rebuildSubtopicMinutesFromSessions(state.topics, recalculated.sessions)
+          };
+        }),
+
+      updateSessionDuration: (sessionId, durationMinutes) =>
+        set((state) => {
+          const nextDuration = Math.max(1, Number(durationMinutes) || 0);
+          const nextSessions = state.sessions.map((session) =>
+            session.id === sessionId
+              ? {
+                  ...session,
+                  durationMinutes: nextDuration
+                }
+              : session
+          );
+          const streakBase = reconcileStreakForNewDay(state.streak);
+          const recalculated = recalculateStreakFromSessions(streakBase, nextSessions);
+          return {
+            sessions: recalculated.sessions,
+            streak: recalculated.streak,
+            topics: rebuildSubtopicMinutesFromSessions(state.topics, recalculated.sessions)
+          };
+        }),
 
       importData: (payload) => {
         const fallbackSubjects = deriveSubjectsFromTopics(payload?.topics || []);
@@ -458,13 +597,41 @@ export const useAppStore = create(
             })).filter((subject) => subject.name)
           : fallbackSubjects;
 
+        const payloadTopics = Array.isArray(payload?.topics) ? payload.topics : [];
+        const mergedTopics = payloadTopics.map((topic, topicIndex) => ({
+          id: topic.id || uid('topic'),
+          subject: normalizeSubjectName(topic.subject),
+          topicName: topic.topicName || 'Untitled Topic',
+          subtopics: Array.isArray(topic.subtopics)
+            ? topic.subtopics.map((subtopic, subtopicIndex) => ({
+                id: subtopic.id || uid('sub'),
+                name: subtopic.name || 'Untitled Subtopic',
+                completed: Boolean(subtopic.completed),
+                completedAt: subtopic.completedAt || null,
+                timeSpentMinutes: Number(subtopic.timeSpentMinutes) || 0,
+                notes: subtopic.notes || '',
+                order: subtopic.order || subtopicIndex + 1
+              }))
+            : [],
+          completed: Boolean(topic.completed),
+          completedAt: topic.completedAt || null,
+          order: topic.order || topicIndex + 1,
+          color: topic.color || '#c084fc',
+          dueDate: normalizeDueDate(topic.dueDate)
+        }));
+
         const merged = {
           ...initialState,
           ...payload,
           subjects: mergedSubjects,
+          topics: mergedTopics,
           streak: {
             ...initialStreak,
             ...(payload?.streak || {})
+          },
+          ui: {
+            ...initialState.ui,
+            ...(payload?.ui || {})
           }
         };
         set(merged);

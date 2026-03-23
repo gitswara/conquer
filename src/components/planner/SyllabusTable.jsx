@@ -1,4 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
+import { DndContext, PointerSensor, closestCenter, useSensor, useSensors } from '@dnd-kit/core';
+import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import PixelCard from '../ui/PixelCard';
 import PixelButton from '../ui/PixelButton';
 import PixelModal from '../ui/PixelModal';
@@ -93,9 +96,56 @@ function subjectStats(topics) {
   };
 }
 
+function SortableTopicRow({
+  topic,
+  stats,
+  number,
+  onRowToggle,
+  showCompletionCheckbox,
+  completed,
+  completedOn,
+  onToggleComplete,
+  onAddSubtopic,
+  onDelete,
+  onRename
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: topic.id
+  });
+
+  const rowStyle = {
+    transform: CSS.Transform.toString(transform),
+    transition
+  };
+
+  return (
+    <TopicRow
+      topic={topic}
+      stats={stats}
+      number={number}
+      onRowToggle={onRowToggle}
+      showCompletionCheckbox={showCompletionCheckbox}
+      completed={completed}
+      completedOn={completedOn}
+      onToggleComplete={onToggleComplete}
+      onAddSubtopic={onAddSubtopic}
+      onDelete={onDelete}
+      onRename={onRename}
+      dragRowAttributes={attributes}
+      dragRowListeners={listeners}
+      rowRef={setNodeRef}
+      rowStyle={rowStyle}
+      rowId={`topic-row-${topic.id}`}
+      isDragging={isDragging}
+    />
+  );
+}
+
 export default function SyllabusTable({
   subjects = [],
   topics,
+  plannerFocusTopicId,
+  onSetPlannerFocusTopic,
   onAddSubject,
   onAddTopic,
   onAddSubtopic,
@@ -107,7 +157,10 @@ export default function SyllabusTable({
   onToggleSubject,
   onDeleteSubject,
   onDeleteTopic,
-  onDeleteSubtopic
+  onDeleteSubtopic,
+  onReorderSubjects,
+  onReorderTopics,
+  onReorderSubtopics
 }) {
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -121,6 +174,7 @@ export default function SyllabusTable({
   const [subtopicModalTopicId, setSubtopicModalTopicId] = useState('');
 
   const [deleteState, setDeleteState] = useState(null);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   const grouped = useMemo(() => {
     const map = new Map();
@@ -174,6 +228,27 @@ export default function SyllabusTable({
       return next;
     });
   }, [grouped]);
+
+  useEffect(() => {
+    if (!plannerFocusTopicId) return;
+
+    const topic = topics.find((entry) => entry.id === plannerFocusTopicId);
+    if (!topic) return;
+
+    setSubjectExpanded((previous) => ({
+      ...previous,
+      [topic.subject]: true
+    }));
+
+    window.setTimeout(() => {
+      const row = document.getElementById(`topic-row-${plannerFocusTopicId}`);
+      if (row) {
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 60);
+
+    onSetPlannerFocusTopic?.('');
+  }, [onSetPlannerFocusTopic, plannerFocusTopicId, topics]);
 
   useEffect(() => {
     setTopicExpanded((previous) => {
@@ -460,12 +535,30 @@ export default function SyllabusTable({
                     />
 
                     {isSubjectExpanded
-                      ? group.topics.map((topic) => {
+                      ? (
+                        <DndContext
+                          sensors={sensors}
+                          collisionDetection={closestCenter}
+                          onDragEnd={(event) => {
+                            const { active, over } = event;
+                            if (!over || active.id === over.id) return;
+
+                            const orderedTopicIds = group.topics.map((entry) => entry.id);
+                            const oldIndex = orderedTopicIds.indexOf(active.id);
+                            const nextIndex = orderedTopicIds.indexOf(over.id);
+                            if (oldIndex < 0 || nextIndex < 0) return;
+
+                            const nextOrder = arrayMove(orderedTopicIds, oldIndex, nextIndex);
+                            onReorderTopics?.(group.subject, nextOrder);
+                          }}
+                        >
+                          <SortableContext items={group.topics.map((topic) => topic.id)} strategy={verticalListSortingStrategy}>
+                            {group.topics.map((topic) => {
                           const stats = topicStats(topic);
                           const isTopicExpanded = topicExpanded[topic.id] ?? false;
                           return (
                             <Fragment key={topic.id}>
-                              <TopicRow
+                              <SortableTopicRow
                                 topic={topic}
                                 stats={stats}
                                 number={numbering.topicNumbers.get(topic.id) || '—'}
@@ -520,7 +613,10 @@ export default function SyllabusTable({
                                 : null}
                             </Fragment>
                           );
-                        })
+                        })}
+                          </SortableContext>
+                        </DndContext>
+                      )
                       : null}
                   </Fragment>
                 );

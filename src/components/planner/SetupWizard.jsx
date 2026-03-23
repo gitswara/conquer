@@ -26,7 +26,7 @@ export default function SetupWizard({ subjects, topics, onAddSubject, onAddTopic
   );
 
   const canContinueStep1 = examName.trim() && examDate && syllabusDeadline && syllabusDeadline <= examDate;
-  const canContinueStep3 = topicCount > 0;
+  const canContinueStep3 = true;
 
   function addRevision() {
     if (revisionPeriods.length >= 5) return;
@@ -138,10 +138,11 @@ export default function SetupWizard({ subjects, topics, onAddSubject, onAddTopic
               <PixelButton onClick={() => setShowSubjectModal(true)}>+ ADD SUBJECT</PixelButton>
               <PixelButton onClick={() => setShowTopicModal(true)}>+ ADD TOPIC</PixelButton>
               <PixelButton onClick={() => setShowSubtopicModal(true)}>+ ADD SUBTOPIC</PixelButton>
+              <PixelButton onClick={() => setStep(4)}>ADD LATER</PixelButton>
             </div>
-            {!canContinueStep3 ? (
-              <div className="muted" style={{ fontSize: 12 }}>Add at least one topic to continue.</div>
-            ) : null}
+            <div className="muted" style={{ fontSize: 12 }}>
+              Adding syllabus now is optional. You can always do it later from Planner.
+            </div>
           </div>
         ) : null}
 
@@ -176,7 +177,7 @@ export default function SetupWizard({ subjects, topics, onAddSubject, onAddTopic
         </PixelButton>
         <PixelButton
           onClick={() => setStep((prev) => Math.min(TOTAL_STEPS, prev + 1))}
-          disabled={(step === 1 && !canContinueStep1) || (step === 3 && !canContinueStep3) || step === TOTAL_STEPS}
+          disabled={(step === 1 && !canContinueStep1) || step === TOTAL_STEPS}
         >
           NEXT
         </PixelButton>

@@ -8,7 +8,13 @@ function getTimerColor({ running, paused, elapsedSeconds }) {
   return 'var(--warning)';
 }
 
-export default function TimerDisplay({ elapsedSeconds, running, paused, targetMinutes }) {
+export default function TimerDisplay({
+  elapsedSeconds,
+  running,
+  paused,
+  targetMinutes,
+  showStreakSecuredBanner = false
+}) {
   const color = getTimerColor({ running, paused, elapsedSeconds });
   const active = running || paused;
   const effectiveTargetMinutes = targetMinutes > 0 ? targetMinutes : 60;
@@ -44,7 +50,7 @@ export default function TimerDisplay({ elapsedSeconds, running, paused, targetMi
       {paused ? (
         <div style={{ marginTop: 8, color: 'var(--accent-primary)', textAlign: 'center' }}>SESSION PAUSED</div>
       ) : null}
-      {elapsedSeconds >= 1800 && running ? (
+      {showStreakSecuredBanner ? (
         <div style={{ marginTop: 8, color: 'var(--success)', textAlign: 'center' }}>🔥 STREAK SECURED!</div>
       ) : null}
     </PixelCard>

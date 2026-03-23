@@ -8,7 +8,9 @@ export default function PlannerTab({
   subjects,
   topics,
   plannerSubtab,
+  plannerFocusTopicId,
   onSetSubtab,
+  onSetPlannerFocusTopic,
   onSetConfig,
   onUpdateConfig,
   onAddSubject,
@@ -23,6 +25,9 @@ export default function PlannerTab({
   onDeleteSubject,
   onDeleteTopic,
   onDeleteSubtopic,
+  onReorderSubjects,
+  onReorderTopics,
+  onReorderSubtopics,
   onFinishSetup
 }) {
   if (!config) {
@@ -61,6 +66,8 @@ export default function PlannerTab({
         <SyllabusTable
           subjects={subjects}
           topics={topics}
+          plannerFocusTopicId={plannerFocusTopicId}
+          onSetPlannerFocusTopic={onSetPlannerFocusTopic}
           onAddSubject={onAddSubject}
           onAddTopic={onAddTopic}
           onAddSubtopic={onAddSubtopic}
@@ -73,6 +80,9 @@ export default function PlannerTab({
           onDeleteSubject={onDeleteSubject}
           onDeleteTopic={onDeleteTopic}
           onDeleteSubtopic={onDeleteSubtopic}
+          onReorderSubjects={onReorderSubjects}
+          onReorderTopics={onReorderTopics}
+          onReorderSubtopics={onReorderSubtopics}
         />
       )}
     </div>
